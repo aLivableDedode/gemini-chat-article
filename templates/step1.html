@@ -1,0 +1,206 @@
+{% extends "base.html" %}
+
+{% block title %}步骤1: 生成标题 - 文章生成系统{% endblock %}
+
+{% block step_progress %}
+<div class="step-progress">
+    📍 当前步骤：创建主题并生成标题 → 下一步：选择标题生成短文
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="section">
+    <h2>步骤 1: 创建主题并生成标题</h2>
+    
+    <!-- 模式选择 -->
+    <div class="form-group">
+        <label>📋 选择模式：</label>
+        <div style="display: flex; gap: 15px; margin-top: 10px;">
+            <label style="display: flex; align-items: center; cursor: pointer;">
+                <input type="radio" name="mode" value="generate" checked onchange="toggleMode()" style="width: auto; margin-right: 8px;">
+                <span>自动生成标题</span>
+            </label>
+            <label style="display: flex; align-items: center; cursor: pointer;">
+                <input type="radio" name="mode" value="custom" onchange="toggleMode()" style="width: auto; margin-right: 8px;">
+                <span>自定义标题</span>
+            </label>
+        </div>
+    </div>
+    
+    <!-- 自动生成模式 -->
+    <div id="generateMode">
+        <div class="form-group">
+            <label>📝 文章主题：</label>
+            <input type="text" id="topicInput" placeholder="例如：不要恋爱脑、职场甩锅、无效社交...">
+        </div>
+        <div class="form-group">
+            <label>📋 选择提示词模板（可选）：</label>
+            <select id="titlePromptSelect">
+                <option value="">使用默认模板</option>
+            </select>
+        </div>
+        <button onclick="createTopic()">🚀 生成标题</button>
+    </div>
+    
+    <!-- 自定义标题模式 -->
+    <div id="customMode" style="display: none;">
+        <div class="form-group">
+            <label>📝 文章主题：</label>
+            <input type="text" id="customTopicInput" placeholder="例如：不要恋爱脑、职场甩锅、无效社交...">
+        </div>
+        <div class="form-group">
+            <label>📝 自定义标题（每行一个）：</label>
+            <textarea id="customTitlesInput" rows="8" placeholder="请输入标题，每行一个，例如：&#10;感动自己的付出，最廉价。&#10;没有底线的善良，是蠢。&#10;权衡利弊的婚姻，真脏。&#10;..." style="width: 100%; padding: 12px 16px; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 14px; font-family: inherit; resize: vertical; background: #ffffff; color: #1a202c;"></textarea>
+        </div>
+        <button onclick="saveCustomTitles()">💾 保存自定义标题</button>
+    </div>
+    
+    <div id="titlesResult"></div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // 页面加载时初始化
+    window.onload = function() {
+        loadPromptTemplates('title', 'titlePromptSelect');
+    };
+    
+    // 切换模式
+    function toggleMode() {
+        const mode = document.querySelector('input[name="mode"]:checked').value;
+        const generateMode = document.getElementById('generateMode');
+        const customMode = document.getElementById('customMode');
+        
+        if (mode === 'generate') {
+            generateMode.style.display = 'block';
+            customMode.style.display = 'none';
+        } else {
+            generateMode.style.display = 'none';
+            customMode.style.display = 'block';
+        }
+    }
+    
+    // 创建主题并生成标题
+    async function createTopic() {
+        const topicText = document.getElementById('topicInput').value.trim();
+        if (!topicText) {
+            alert('请输入文章主题');
+            return;
+        }
+        
+        const templateId = document.getElementById('titlePromptSelect').value || null;
+        const resultDiv = document.getElementById('titlesResult');
+        resultDiv.innerHTML = '<div class="loading">正在生成标题</div>';
+        
+        try {
+            const response = await fetch('/api/topics', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    topic_text: topicText,
+                    template_id: templateId ? parseInt(templateId) : null
+                })
+            });
+            const result = await response.json();
+            
+            if (result.success) {
+                // 处理返回的数据格式
+                const topicText = result.data.topic_text || topicText;
+                const titles = result.data.titles || [];
+                
+                resultDiv.innerHTML = `
+                    <div class="success">✅ 成功生成 ${titles.length} 个标题！</div>
+                    <div style="margin-top: 15px;">
+                        <strong>主题：</strong> ${result.data.topic_text || topicText}<br>
+                        <strong>标题列表：</strong>
+                        <ul style="margin-top: 10px; padding-left: 20px;">
+                            ${titles.map(t => {
+                                // 处理不同的数据格式：可能是字符串数组，也可能是对象数组
+                                const titleText = typeof t === 'string' ? t : (t.title_text || t);
+                                return `<li style="margin: 8px 0; color: #1a202c;">${escapeHtml(titleText)}</li>`;
+                            }).join('')}
+                        </ul>
+                    </div>
+                    <div style="margin-top: 20px;">
+                        <a href="/step2" class="next-step-btn">
+                            <button>➡️ 下一步：选择标题生成短文</button>
+                        </a>
+                    </div>
+                `;
+                document.getElementById('topicInput').value = '';
+            } else {
+                resultDiv.innerHTML = `<div class="error">❌ ${result.error}</div>`;
+            }
+        } catch (error) {
+            resultDiv.innerHTML = `<div class="error">❌ 生成失败: ${error.message}</div>`;
+        }
+    }
+    
+    // 保存自定义标题
+    async function saveCustomTitles() {
+        const topicText = document.getElementById('customTopicInput').value.trim();
+        const titlesText = document.getElementById('customTitlesInput').value.trim();
+        
+        if (!topicText) {
+            alert('请输入文章主题');
+            return;
+        }
+        
+        if (!titlesText) {
+            alert('请输入至少一个标题');
+            return;
+        }
+        
+        // 解析标题（按行分割，过滤空行）
+        const titles = titlesText.split('\n')
+            .map(t => t.trim())
+            .filter(t => t.length > 0);
+        
+        if (titles.length === 0) {
+            alert('请输入至少一个有效的标题');
+            return;
+        }
+        
+        const resultDiv = document.getElementById('titlesResult');
+        resultDiv.innerHTML = '<div class="loading">正在保存标题</div>';
+        
+        try {
+            const response = await fetch('/api/topics/custom', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    topic_text: topicText,
+                    titles: titles
+                })
+            });
+            const result = await response.json();
+            
+            if (result.success) {
+                resultDiv.innerHTML = `
+                    <div class="success">✅ 成功保存 ${result.data.titles.length} 个自定义标题！</div>
+                    <div style="margin-top: 15px;">
+                        <strong>主题：</strong> ${result.data.topic_text}<br>
+                        <strong>标题列表：</strong>
+                        <ul style="margin-top: 10px; padding-left: 20px;">
+                            ${result.data.titles.map(t => `<li style="margin: 8px 0; color: #1a202c;">${t.title_text}</li>`).join('')}
+                        </ul>
+                    </div>
+                    <div style="margin-top: 20px;">
+                        <a href="/step2" class="next-step-btn">
+                            <button>➡️ 下一步：选择标题生成短文</button>
+                        </a>
+                    </div>
+                `;
+                document.getElementById('customTopicInput').value = '';
+                document.getElementById('customTitlesInput').value = '';
+            } else {
+                resultDiv.innerHTML = `<div class="error">❌ ${result.error}</div>`;
+            }
+        } catch (error) {
+            resultDiv.innerHTML = `<div class="error">❌ 保存失败: ${error.message}</div>`;
+        }
+    }
+</script>
+{% endblock %}
+

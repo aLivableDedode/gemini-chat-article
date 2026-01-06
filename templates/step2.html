@@ -1,0 +1,272 @@
+{% extends "base.html" %}
+
+{% block title %}步骤2: 生成短文 - 文章生成系统{% endblock %}
+
+{% block step_progress %}
+<div class="step-progress">
+    📍 当前步骤：选择标题生成短文 → 下一步：选择短文生成HTML
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="section">
+    <h2>步骤 2: 选择标题生成短文</h2>
+    
+    <!-- 模式选择 -->
+    <div class="form-group">
+        <label>📋 选择模式：</label>
+        <div style="display: flex; gap: 15px; margin-top: 10px;">
+            <label style="display: flex; align-items: center; cursor: pointer;">
+                <input type="radio" name="mode" value="generate" checked onchange="toggleMode()" style="width: auto; margin-right: 8px;">
+                <span>选择标题生成短文</span>
+            </label>
+            <label style="display: flex; align-items: center; cursor: pointer;">
+                <input type="radio" name="mode" value="custom" onchange="toggleMode()" style="width: auto; margin-right: 8px;">
+                <span>自定义短文输入</span>
+            </label>
+        </div>
+    </div>
+    
+    <!-- 选择标题生成短文模式 -->
+    <div id="generateMode">
+        <div class="form-group">
+            <label>📋 选择主题查看标题：</label>
+            <select id="topicSelect" onchange="loadTitles()">
+                <option value="">-- 选择主题 --</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label>📋 选择提示词模板（可选）：</label>
+            <select id="articlePromptSelect">
+                <option value="">使用默认模板</option>
+            </select>
+        </div>
+        <div id="titlesList"></div>
+        <button onclick="generateArticles()" id="generateArticlesBtn" disabled>📄 为选中标题生成短文</button>
+        <div id="articlesResult"></div>
+    </div>
+    
+    <!-- 自定义短文输入模式 -->
+    <div id="customMode" style="display: none;">
+        <div class="form-group">
+            <label>📝 文章主题（可选，不填则自动创建）：</label>
+            <input type="text" id="customArticleTopicInput" placeholder="例如：不要恋爱脑、职场甩锅、无效社交...">
+        </div>
+        <div class="form-group">
+            <label>📝 标题：</label>
+            <input type="text" id="customArticleTitleInput" placeholder="例如：感动自己的付出，最廉价。">
+        </div>
+        <div class="form-group">
+            <label>📄 短文内容：</label>
+            <textarea id="customArticleContentInput" rows="15" placeholder="请输入短文内容..."></textarea>
+        </div>
+        <button onclick="saveCustomArticle()">💾 保存自定义短文</button>
+        <div id="customArticleResult"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let selectedTitleIds = [];
+    
+    // 页面加载时初始化
+    window.onload = function() {
+        loadPromptTemplates('article', 'articlePromptSelect');
+        loadTopics();
+    };
+    
+    // 切换模式
+    function toggleMode() {
+        const mode = document.querySelector('input[name="mode"]:checked').value;
+        const generateMode = document.getElementById('generateMode');
+        const customMode = document.getElementById('customMode');
+        
+        if (mode === 'generate') {
+            generateMode.style.display = 'block';
+            customMode.style.display = 'none';
+        } else {
+            generateMode.style.display = 'none';
+            customMode.style.display = 'block';
+        }
+    }
+    
+    // 加载主题列表
+    async function loadTopics() {
+        try {
+            const response = await fetch('/api/topics');
+            const result = await response.json();
+            
+            if (result.success) {
+                const select = document.getElementById('topicSelect');
+                select.innerHTML = '<option value="">-- 选择主题 --</option>';
+                
+                if (result.data && result.data.length > 0) {
+                    result.data.forEach(topic => {
+                        const option = document.createElement('option');
+                        option.value = topic.id;
+                        option.textContent = `${topic.topic_text} (${topic.titles_count || 0}个标题)`;
+                        select.appendChild(option);
+                    });
+                }
+            }
+        } catch (error) {
+            console.error('加载主题失败:', error);
+        }
+    }
+    
+    // 加载标题列表
+    async function loadTitles() {
+        const topicId = document.getElementById('topicSelect').value;
+        if (!topicId) {
+            document.getElementById('titlesList').innerHTML = '';
+            return;
+        }
+        
+        const titlesListDiv = document.getElementById('titlesList');
+        titlesListDiv.innerHTML = '<div class="loading">加载中</div>';
+        
+        try {
+            const response = await fetch(`/api/topics/${topicId}/titles`);
+            const result = await response.json();
+            
+            if (result.success) {
+                selectedTitleIds = [];
+                titlesListDiv.innerHTML = result.data.titles.map(title => `
+                    <div class="list-item" onclick="toggleTitle(${title.id})" id="title-${title.id}">
+                        ${title.title_text}
+                    </div>
+                `).join('');
+                
+                document.getElementById('generateArticlesBtn').disabled = false;
+            } else {
+                titlesListDiv.innerHTML = `<div class="error">❌ ${result.error}</div>`;
+            }
+        } catch (error) {
+            titlesListDiv.innerHTML = `<div class="error">❌ 加载失败: ${error.message}</div>`;
+        }
+    }
+    
+    // 切换标题选择
+    function toggleTitle(titleId) {
+        const index = selectedTitleIds.indexOf(titleId);
+        const item = document.getElementById(`title-${titleId}`);
+        
+        if (index > -1) {
+            selectedTitleIds.splice(index, 1);
+            item.classList.remove('selected');
+        } else {
+            selectedTitleIds.push(titleId);
+            item.classList.add('selected');
+        }
+    }
+    
+    // 生成短文
+    async function generateArticles() {
+        if (selectedTitleIds.length === 0) {
+            alert('请至少选择一个标题');
+            return;
+        }
+        
+        const templateId = document.getElementById('articlePromptSelect').value || null;
+        const resultDiv = document.getElementById('articlesResult');
+        resultDiv.innerHTML = '<div class="loading">正在生成短文</div>';
+        
+        const results = [];
+        for (const titleId of selectedTitleIds) {
+            try {
+                const response = await fetch(`/api/titles/${titleId}/articles`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        template_id: templateId ? parseInt(templateId) : null
+                    })
+                });
+                const result = await response.json();
+                
+                if (result.success) {
+                    results.push(`✅ 标题ID ${titleId}: 短文已生成（ID: ${result.data.article_id}）`);
+                } else {
+                    results.push(`❌ 标题ID ${titleId}: ${result.error}`);
+                }
+            } catch (error) {
+                results.push(`❌ 标题ID ${titleId}: ${error.message}`);
+            }
+        }
+        
+        resultDiv.innerHTML = `
+            <div class="success">✅ 短文生成完成！</div>
+            <div style="margin-top: 15px;">
+                ${results.map(r => `<div style="margin: 5px 0; color: #1a202c;">${r}</div>`).join('')}
+            </div>
+            <div style="margin-top: 20px;">
+                <a href="/step3" class="next-step-btn">
+                    <button>➡️ 下一步：选择短文生成HTML</button>
+                </a>
+            </div>
+        `;
+    }
+    
+    // 保存自定义短文
+    async function saveCustomArticle() {
+        const topicText = document.getElementById('customArticleTopicInput').value.trim();
+        const titleText = document.getElementById('customArticleTitleInput').value.trim();
+        const articleText = document.getElementById('customArticleContentInput').value.trim();
+        
+        if (!titleText) {
+            alert('请输入标题');
+            return;
+        }
+        
+        if (!articleText) {
+            alert('请输入短文内容');
+            return;
+        }
+        
+        const resultDiv = document.getElementById('customArticleResult');
+        resultDiv.innerHTML = '<div class="loading">正在保存...</div>';
+        
+        try {
+            const response = await fetch('/api/articles/custom', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    topic_text: topicText || null,
+                    title_text: titleText,
+                    article_text: articleText
+                })
+            });
+            const result = await response.json();
+            
+            if (result.success) {
+                resultDiv.innerHTML = `
+                    <div class="success">✅ 自定义短文保存成功！</div>
+                    <div style="margin-top: 15px;">
+                        <strong>主题：</strong> ${result.data.topic_text || '（自动创建）'}<br>
+                        <strong>标题ID：</strong> ${result.data.title_id}<br>
+                        <strong>标题：</strong> ${result.data.title_text}<br>
+                        <strong>短文ID：</strong> ${result.data.article_id}
+                    </div>
+                    <div style="margin-top: 20px;">
+                        <a href="/step3" class="next-step-btn">
+                            <button>➡️ 下一步：选择短文生成HTML</button>
+                        </a>
+                    </div>
+                `;
+                // 清空表单
+                document.getElementById('customArticleTopicInput').value = '';
+                document.getElementById('customArticleTitleInput').value = '';
+                document.getElementById('customArticleContentInput').value = '';
+                
+                // 刷新主题列表
+                loadTopics();
+            } else {
+                resultDiv.innerHTML = `<div class="error">❌ ${result.error}</div>`;
+            }
+        } catch (error) {
+            resultDiv.innerHTML = `<div class="error">❌ 保存失败: ${error.message}</div>`;
+        }
+    }
+</script>
+{% endblock %}
+

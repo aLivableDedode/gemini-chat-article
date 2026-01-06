@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+
+{% block title %}步骤5: 调用Coze API - 文章生成系统{% endblock %}
+
+{% block step_progress %}
+<div class="step-progress">
+    📍 当前步骤：选择标题生成HTML并调用Coze API
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="section">
+    <h2>步骤 5: 选择标题生成HTML并调用Coze API</h2>
+    <div class="form-group">
+        <label>📋 选择主题查看标题：</label>
+        <select id="cozeTopicSelect" onchange="loadCozeTitles()">
+            <option value="">-- 选择主题 --</option>
+        </select>
+    </div>
+    <div class="form-group">
+        <label>📋 选择提示词模板（可选）：</label>
+        <select id="cozeHtmlPromptSelect">
+            <option value="">使用默认模板</option>
+        </select>
+    </div>
+    <div id="cozeTitlesList"></div>
+    <button onclick="generateHTMLAndCallCoze()" id="generateCozeBtn" disabled>🚀 为选中标题生成HTML并调用Coze API</button>
+    <div id="cozeResult"></div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let selectedCozeTitleId = null;
+    
+    // 页面加载时初始化
+    window.onload = function() {
+        loadPromptTemplates('html', 'cozeHtmlPromptSelect');
+        loadCozeTopics();
+    };
+    
+    // 加载Coze主题列表（复用主题数据）
+    async function loadCozeTopics() {
+        try {
+            const response = await fetch('/api/topics');
+            const result = await response.json();
+            
+            if (result.success) {
+                const select = document.getElementById('cozeTopicSelect');
+                select.innerHTML = '<option value="">-- 选择主题 --</option>';
+                
+                if (result.data && result.data.length > 0) {
+                    result.data.forEach(topic => {
+                        const option = document.createElement('option');
+                        option.value = topic.id;
+                        option.textContent = `${topic.topic_text} (${topic.titles_count || 0}个标题)`;
+                        select.appendChild(option);
+                    });
+                }
+            }
+        } catch (error) {
+            console.error('加载Coze主题失败:', error);
+        }
+    }
+    
+    // 加载Coze标题列表
+    async function loadCozeTitles() {
+        const topicId = document.getElementById('cozeTopicSelect').value;
+        if (!topicId) {
+            document.getElementById('cozeTitlesList').innerHTML = '';
+            return;
+        }
+        
+        const titlesListDiv = document.getElementById('cozeTitlesList');
+        titlesListDiv.innerHTML = '<div class="loading">加载中</div>';
+        
+        try {
+            const response = await fetch(`/api/topics/${topicId}/titles`);
+            const result = await response.json();
+            
+            if (result.success) {
+                titlesListDiv.innerHTML = result.data.titles.map(title => `
+                    <div class="list-item" onclick="selectCozeTitle(${title.id})" id="coze-title-${title.id}">
+                        ${title.title_text}
+                    </div>
+                `).join('');
+                
+                document.getElementById('generateCozeBtn').disabled = false;
+            } else {
+                titlesListDiv.innerHTML = `<div class="error">❌ ${result.error}</div>`;
+            }
+        } catch (error) {
+            titlesListDiv.innerHTML = `<div class="error">❌ 加载失败: ${error.message}</div>`;
+        }
+    }
+    
+    // 选择Coze标题
+    function selectCozeTitle(titleId) {
+        selectedCozeTitleId = titleId;
+        
+        document.querySelectorAll('#cozeTitlesList .list-item').forEach(item => {
+            item.classList.remove('selected');
+        });
+        document.getElementById(`coze-title-${titleId}`).classList.add('selected');
+        
+        document.getElementById('generateCozeBtn').disabled = false;
+    }
+    
+    // 生成HTML并调用Coze API
+    async function generateHTMLAndCallCoze() {
+        if (!selectedCozeTitleId) {
+            alert('请选择一个标题');
+            return;
+        }
+        
+        const htmlTemplateId = document.getElementById('cozeHtmlPromptSelect').value || null;
+        
+        const resultDiv = document.getElementById('cozeResult');
+        resultDiv.innerHTML = '<div class="loading">正在生成HTML并调用Coze API</div>';
+        
+        try {
+            const response = await fetch(`/api/titles/${selectedCozeTitleId}/coze`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    html_template_id: htmlTemplateId ? parseInt(htmlTemplateId) : null
+                })
+            });
+            const result = await response.json();
+            
+            if (result.success) {
+                resultDiv.innerHTML = `
+                    <div class="success">✅ 成功！HTML已生成并调用Coze API</div>
+                    <div style="margin-top: 15px; padding: 15px; background: #ffffff; border-radius: 8px; border: 1px solid #e2e8f0;">
+                        <div style="color: #1a202c; margin-bottom: 10px;"><strong style="color: #2d3748;">标题:</strong> <span style="color: #1a202c;">${result.data.title_text}</span></div>
+                        <div style="color: #1a202c; margin-bottom: 10px;"><strong style="color: #2d3748;">HTML ID:</strong> <span style="color: #1a202c;">${result.data.html_id}</span></div>
+                        <div style="color: #1a202c; margin-bottom: 10px;"><strong style="color: #2d3748;">Coze API响应:</strong></div>
+                        <pre style="background: #f7fafc; color: #1a202c !important; padding: 15px; border-radius: 4px; overflow-x: auto; margin-top: 10px; max-height: 400px; overflow-y: auto; border: 1px solid #e2e8f0; font-size: 13px; line-height: 1.5;">${JSON.stringify(result.data.coze_result, null, 2)}</pre>
+                    </div>
+                `;
+            } else {
+                resultDiv.innerHTML = `<div class="error">❌ ${result.error}</div>`;
+            }
+        } catch (error) {
+            resultDiv.innerHTML = `<div class="error">❌ 生成失败: ${error.message}</div>`;
+        }
+    }
+</script>
+{% endblock %}
+

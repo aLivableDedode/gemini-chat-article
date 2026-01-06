@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+
+{% block title %}步骤4: 查看HTML输出 - 文章生成系统{% endblock %}
+
+{% block step_progress %}
+<div class="step-progress">
+    📍 当前步骤：查看HTML输出 → 可选：调用Coze API
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="section">
+    <h2>步骤 4: 查看HTML输出</h2>
+    <button onclick="loadHTMLOutputs()">🔄 刷新HTML列表</button>
+    <div id="htmlOutputsList"></div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // 页面加载时初始化
+    window.onload = function() {
+        loadHTMLOutputs();
+    };
+    
+    // 加载HTML输出列表（仅显示列表，不加载内容）
+    async function loadHTMLOutputs() {
+        const htmlListDiv = document.getElementById('htmlOutputsList');
+        htmlListDiv.innerHTML = '<div class="loading">加载中</div>';
+        
+        try {
+            const response = await fetch('/api/html');
+            const result = await response.json();
+            
+            if (result.success) {
+                if (result.data.length === 0) {
+                    htmlListDiv.innerHTML = '<div class="info">暂无HTML输出，请先完成步骤3</div>';
+                } else {
+                    htmlListDiv.innerHTML = result.data.map(html => `
+                        <div class="html-output-item" style="margin-bottom: 15px; padding: 20px; background: #ffffff; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 2px 8px rgba(0,0,0,0.05); cursor: pointer; transition: all 0.3s ease;" onclick="toggleHTMLOutput(${html.id}, this)">
+                            <div style="color: #2d3748; display: flex; justify-content: space-between; align-items: center;">
+                                <div>
+                                    <strong style="color: #1a202c;">ID:</strong> <span style="color: #1a202c;">${html.id}</span> | 
+                                    <strong style="color: #1a202c;">短文:</strong> <span style="color: #1a202c;">${html.article_title}</span>
+                                </div>
+                                <div style="color: #667eea; font-size: 14px;">
+                                    <span class="expand-icon-${html.id}">▼</span> <span class="expand-text-${html.id}">点击展开</span>
+                                </div>
+                            </div>
+                            <div id="html-content-${html.id}" style="display: none; margin-top: 15px; padding-top: 15px; border-top: 1px solid #e2e8f0;">
+                                <div class="loading-small">加载中...</div>
+                            </div>
+                        </div>
+                    `).join('');
+                }
+            } else {
+                htmlListDiv.innerHTML = `<div class="error">❌ ${result.error}</div>`;
+            }
+        } catch (error) {
+            htmlListDiv.innerHTML = `<div class="error">❌ 加载失败: ${error.message}</div>`;
+        }
+    }
+    
+    // 切换HTML输出内容的显示/隐藏
+    async function toggleHTMLOutput(htmlId, element) {
+        const contentDiv = document.getElementById(`html-content-${htmlId}`);
+        const iconSpan = element.querySelector(`.expand-icon-${htmlId}`);
+        const textSpan = element.querySelector(`.expand-text-${htmlId}`);
+        
+        // 如果已经展开，直接折叠
+        if (contentDiv.style.display !== 'none') {
+            contentDiv.style.display = 'none';
+            iconSpan.textContent = '▼';
+            textSpan.textContent = '点击展开';
+            return;
+        }
+        
+        // 如果内容还没有加载，先加载
+        if (contentDiv.innerHTML.includes('加载中')) {
+            try {
+                const response = await fetch(`/api/html/${htmlId}`);
+                const result = await response.json();
+                
+                if (result.success) {
+                    contentDiv.innerHTML = `<div class="html-preview" style="color: #1a202c;">${result.data.html_content}</div>`;
+                    contentDiv.style.display = 'block';
+                    iconSpan.textContent = '▲';
+                    textSpan.textContent = '点击收起';
+                } else {
+                    contentDiv.innerHTML = `<div class="error">❌ ${result.error}</div>`;
+                    contentDiv.style.display = 'block';
+                }
+            } catch (error) {
+                contentDiv.innerHTML = `<div class="error">❌ 加载失败: ${error.message}</div>`;
+                contentDiv.style.display = 'block';
+            }
+        } else {
+            // 内容已加载，直接切换显示
+            contentDiv.style.display = 'block';
+            iconSpan.textContent = '▲';
+            textSpan.textContent = '点击收起';
+        }
+    }
+</script>
+{% endblock %}
+

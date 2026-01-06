@@ -1,0 +1,224 @@
+{% extends "base.html" %}
+
+{% block title %}提示词管理 - 文章生成系统{% endblock %}
+
+{% block content %}
+<div class="section">
+    <h2>📝 提示词管理</h2>
+    
+    <!-- 添加提示词表单 -->
+    <div style="margin-bottom: 30px; padding: 20px; background: #f7fafc; border-radius: 12px; border: 1px solid #e2e8f0;">
+        <h3 style="margin-bottom: 15px; color: #1a202c;">➕ 添加新提示词</h3>
+        <div class="form-group">
+            <label>📋 分类：</label>
+            <select id="addPromptCategory">
+                <option value="">-- 选择分类 --</option>
+                <option value="title">标题提示词</option>
+                <option value="article">短文提示词</option>
+                <option value="html">HTML提示词</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label>📝 模板名称：</label>
+            <input type="text" id="addPromptName" placeholder="例如：默认标题模板、情感类标题模板...">
+        </div>
+        <div class="form-group">
+            <label>📄 模板描述（可选）：</label>
+            <input type="text" id="addPromptDescription" placeholder="简要描述这个模板的用途...">
+        </div>
+        <div class="form-group">
+            <label>📝 模板内容：</label>
+            <textarea id="addPromptContent" rows="12" placeholder="请输入提示词模板内容...&#10;&#10;可以使用占位符：&#10;- {{topic}} 用于标题生成&#10;- {{content}} 用于HTML生成"></textarea>
+        </div>
+        <div class="form-group">
+            <label style="display: flex; align-items: center; cursor: pointer;">
+                <input type="checkbox" id="addPromptIsDefault" style="width: auto; margin-right: 8px;">
+                <span>设为默认模板</span>
+            </label>
+        </div>
+        <button onclick="addPrompt()">💾 保存提示词</button>
+        <div id="addPromptResult" style="margin-top: 15px;"></div>
+    </div>
+    
+    <!-- 查看提示词列表 -->
+    <div style="margin-top: 30px;">
+        <h3 style="margin-bottom: 15px; color: #1a202c;">📋 查看提示词列表</h3>
+        <div class="form-group">
+            <label>选择查看类型：</label>
+            <select id="promptTypeSelect" onchange="loadPrompts()">
+                <option value="">-- 选择类型 --</option>
+                <option value="titles">标题提示词</option>
+                <option value="articles">短文提示词</option>
+                <option value="html">HTML提示词</option>
+            </select>
+        </div>
+        <div id="promptsList"></div>
+        <div id="promptDetail" style="display: none; margin-top: 20px; padding: 20px; background: #f7fafc; border-radius: 12px; border: 1px solid #e2e8f0;">
+            <button onclick="closePromptDetail()" style="background: #718096; margin-bottom: 15px;">关闭</button>
+            <div id="promptContent"></div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // 添加提示词
+    async function addPrompt() {
+        const category = document.getElementById('addPromptCategory').value;
+        const name = document.getElementById('addPromptName').value.trim();
+        const description = document.getElementById('addPromptDescription').value.trim();
+        const content = document.getElementById('addPromptContent').value.trim();
+        const isDefault = document.getElementById('addPromptIsDefault').checked;
+        
+        if (!category) {
+            alert('请选择分类');
+            return;
+        }
+        
+        if (!name) {
+            alert('请输入模板名称');
+            return;
+        }
+        
+        if (!content) {
+            alert('请输入模板内容');
+            return;
+        }
+        
+        const resultDiv = document.getElementById('addPromptResult');
+        resultDiv.innerHTML = '<div class="loading">正在保存...</div>';
+        
+        try {
+            const response = await fetch('/api/prompts', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    category: category,
+                    name: name,
+                    description: description || null,
+                    content: content,
+                    is_default: isDefault
+                })
+            });
+            const result = await response.json();
+            
+            if (result.success) {
+                resultDiv.innerHTML = `
+                    <div class="success">✅ 提示词保存成功！</div>
+                    <div style="margin-top: 10px;">
+                        <strong>模板ID:</strong> ${result.data.id}<br>
+                        <strong>分类:</strong> ${result.data.category}<br>
+                        <strong>名称:</strong> ${result.data.name}
+                    </div>
+                `;
+                // 清空表单
+                document.getElementById('addPromptCategory').value = '';
+                document.getElementById('addPromptName').value = '';
+                document.getElementById('addPromptDescription').value = '';
+                document.getElementById('addPromptContent').value = '';
+                document.getElementById('addPromptIsDefault').checked = false;
+                
+                // 如果当前查看的类型匹配，刷新列表
+                const currentType = document.getElementById('promptTypeSelect').value;
+                if (currentType && (
+                    (currentType === 'titles' && category === 'title') ||
+                    (currentType === 'articles' && category === 'article') ||
+                    (currentType === 'html' && category === 'html')
+                )) {
+                    loadPrompts();
+                }
+            } else {
+                resultDiv.innerHTML = `<div class="error">❌ ${result.error}</div>`;
+            }
+        } catch (error) {
+            resultDiv.innerHTML = `<div class="error">❌ 保存失败: ${error.message}</div>`;
+        }
+    }
+    
+    // 加载提示词列表
+    async function loadPrompts() {
+        const type = document.getElementById('promptTypeSelect').value;
+        if (!type) {
+            document.getElementById('promptsList').innerHTML = '';
+            return;
+        }
+        
+        const promptsListDiv = document.getElementById('promptsList');
+        promptsListDiv.innerHTML = '<div class="loading">加载中</div>';
+        
+        try {
+            let url = '';
+            if (type === 'titles') {
+                url = '/api/prompts/title';
+            } else if (type === 'articles') {
+                url = '/api/prompts/article';
+            } else if (type === 'html') {
+                url = '/api/prompts/html';
+            }
+            
+            const response = await fetch(url);
+            const result = await response.json();
+            
+            if (result.success) {
+                if (result.data.length === 0) {
+                    promptsListDiv.innerHTML = '<div class="info">暂无提示词模板</div>';
+                } else {
+                    promptsListDiv.innerHTML = result.data.map(prompt => `
+                        <div class="list-item" onclick="showPromptDetail('${type}', ${prompt.id})" style="cursor: pointer;">
+                            <strong>${prompt.name}</strong>
+                            <small style="display: block; margin-top: 5px; color: #718096;">分类: ${prompt.category}</small>
+                        </div>
+                    `).join('');
+                }
+            } else {
+                promptsListDiv.innerHTML = `<div class="error">❌ ${result.error}</div>`;
+            }
+        } catch (error) {
+            promptsListDiv.innerHTML = `<div class="error">❌ 加载失败: ${error.message}</div>`;
+        }
+    }
+    
+    // 显示提示词详情
+    async function showPromptDetail(type, promptId) {
+        const detailDiv = document.getElementById('promptDetail');
+        const contentDiv = document.getElementById('promptContent');
+        contentDiv.innerHTML = '<div class="loading">加载中</div>';
+        detailDiv.style.display = 'block';
+        
+        try {
+            const response = await fetch(`/api/prompts/${promptId}`);
+            const result = await response.json();
+            
+            if (result.success) {
+                let title = '';
+                if (type === 'titles') {
+                    title = `标题: ${result.data.name}`;
+                } else if (type === 'article') {
+                    title = `短文: ${result.data.name}`;
+                } else if (type === 'html') {
+                    title = `HTML: ${result.data.name}`;
+                }
+                
+                contentDiv.innerHTML = `
+                    <h3>${title}</h3>
+                    <div style="margin-top: 15px; padding: 15px; background: white; border-radius: 8px; border: 1px solid #e2e8f0;">
+                        <pre style="white-space: pre-wrap; word-wrap: break-word; color: #1a202c; font-family: 'Courier New', monospace; font-size: 13px; line-height: 1.6;">${escapeHtml(result.data.content)}</pre>
+                    </div>
+                `;
+                detailDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            } else {
+                contentDiv.innerHTML = `<div class="error">❌ ${result.error}</div>`;
+            }
+        } catch (error) {
+            contentDiv.innerHTML = `<div class="error">❌ 加载失败: ${error.message}</div>`;
+        }
+    }
+    
+    // 关闭提示词详情
+    function closePromptDetail() {
+        document.getElementById('promptDetail').style.display = 'none';
+    }
+</script>
+{% endblock %}
+

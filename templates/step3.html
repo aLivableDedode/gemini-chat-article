@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+
+{% block title %}步骤3: 生成HTML - 文章生成系统{% endblock %}
+
+{% block step_progress %}
+<div class="step-progress">
+    📍 当前步骤：选择短文生成HTML → 下一步：查看HTML输出
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="section">
+    <h2>步骤 3: 选择短文生成HTML</h2>
+    <div class="form-group">
+        <label>📋 选择提示词模板（可选）：</label>
+        <select id="htmlPromptSelect">
+            <option value="">使用默认模板</option>
+        </select>
+    </div>
+    <div id="articlesList"></div>
+    <button onclick="generateHTML()" id="generateHTMLBtn" disabled>🎨 为选中短文生成HTML</button>
+    <div id="htmlResult"></div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let selectedArticleId = null;
+    
+    // 页面加载时初始化
+    window.onload = function() {
+        loadPromptTemplates('html', 'htmlPromptSelect');
+        loadArticles();
+    };
+    
+    // 加载短文列表
+    async function loadArticles() {
+        const articlesListDiv = document.getElementById('articlesList');
+        articlesListDiv.innerHTML = '<div class="loading">加载中</div>';
+        
+        try {
+            const response = await fetch('/api/articles');
+            const result = await response.json();
+            
+            if (result.success) {
+                if (result.data.length === 0) {
+                    articlesListDiv.innerHTML = '<div class="info">暂无短文，请先完成步骤2</div>';
+                } else {
+                    articlesListDiv.innerHTML = result.data.map(article => `
+                        <div class="list-item" onclick="selectArticle(${article.id})" id="article-${article.id}">
+                            <strong>${article.title_text}</strong>
+                            <small style="display: block; margin-top: 5px; color: #718096;">${article.article_text ? article.article_text.substring(0, 100) + '...' : '暂无内容'}</small>
+                        </div>
+                    `).join('');
+                }
+            }
+        } catch (error) {
+            articlesListDiv.innerHTML = `<div class="error">❌ 加载失败: ${error.message}</div>`;
+        }
+    }
+    
+    // 选择短文
+    function selectArticle(articleId) {
+        selectedArticleId = articleId;
+        
+        document.querySelectorAll('#articlesList .list-item').forEach(item => {
+            item.classList.remove('selected');
+        });
+        document.getElementById(`article-${articleId}`).classList.add('selected');
+        
+        document.getElementById('generateHTMLBtn').disabled = false;
+    }
+    
+    // 生成HTML
+    async function generateHTML() {
+        if (!selectedArticleId) {
+            alert('请选择一个短文');
+            return;
+        }
+        
+        const templateId = document.getElementById('htmlPromptSelect').value || null;
+        const resultDiv = document.getElementById('htmlResult');
+        resultDiv.innerHTML = '<div class="loading">正在生成HTML</div>';
+        
+        try {
+            const response = await fetch(`/api/articles/${selectedArticleId}/html`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    template_id: templateId ? parseInt(templateId) : null
+                })
+            });
+            const result = await response.json();
+            
+            if (result.success) {
+                resultDiv.innerHTML = `
+                    <div class="success">✅ HTML已生成（ID: ${result.data.html_id}）</div>
+                    <div class="html-preview" style="color: #1a202c;">${result.data.html_content}</div>
+                    <div style="margin-top: 20px;">
+                        <a href="/step4" class="next-step-btn">
+                            <button>➡️ 下一步：查看HTML输出</button>
+                        </a>
+                    </div>
+                `;
+                loadArticles();
+            } else {
+                resultDiv.innerHTML = `<div class="error">❌ ${result.error}</div>`;
+            }
+        } catch (error) {
+            resultDiv.innerHTML = `<div class="error">❌ 生成失败: ${error.message}</div>`;
+        }
+    }
+</script>
+{% endblock %}
+

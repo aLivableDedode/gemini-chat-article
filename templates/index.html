@@ -1,0 +1,1274 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>文章生成系统</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 50px;
+            border-radius: 24px;
+            box-shadow: 0 25px 70px rgba(0,0,0,0.15);
+            position: relative;
+        }
+        
+        .container::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 5px;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+            border-radius: 24px 24px 0 0;
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 50px;
+            font-size: 36px;
+            font-weight: 700;
+            text-align: center;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            letter-spacing: -0.5px;
+            position: relative;
+            padding-bottom: 20px;
+        }
+        
+        h1::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80px;
+            height: 4px;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            border-radius: 2px;
+        }
+        
+        .section {
+            margin-bottom: 35px;
+            padding: 30px;
+            background: #ffffff;
+            border-radius: 16px;
+            border: 1px solid #e9ecef;
+            border-left: 5px solid #667eea;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .section::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        
+        .section:hover::before {
+            opacity: 1;
+        }
+        
+        .section:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+        }
+        
+        .section h2 {
+            color: #1a202c;
+            margin-bottom: 20px;
+            font-size: 20px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .section h2::before {
+            content: '';
+            width: 4px;
+            height: 24px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 2px;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #2d3748;
+            font-weight: 600;
+            font-size: 14px;
+        }
+        
+        input[type="text"], textarea, select {
+            width: 100%;
+            padding: 16px 20px;
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            font-size: 15px;
+            transition: all 0.3s ease;
+            background: #ffffff;
+            color: #1a202c;
+        }
+        
+        input[type="text"]:focus, textarea:focus, select:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.12), 0 4px 12px rgba(102, 126, 234, 0.1);
+            transform: translateY(-1px);
+        }
+        
+        input[type="text"]::placeholder {
+            color: #a0aec0;
+        }
+        
+        select {
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23667eea' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 16px center;
+            padding-right: 40px;
+            appearance: none;
+            cursor: pointer;
+        }
+        
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 14px 28px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 15px;
+            font-weight: 600;
+            margin-right: 12px;
+            margin-top: 10px;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        button::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.3);
+            transform: translate(-50%, -50%);
+            transition: width 0.6s, height 0.6s;
+        }
+        
+        button:hover::before {
+            width: 300px;
+            height: 300px;
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.5);
+        }
+        
+        button:active {
+            transform: translateY(0);
+        }
+        
+        button:disabled {
+            background: #cbd5e0;
+            cursor: not-allowed;
+            box-shadow: none;
+            transform: none;
+        }
+        
+        button:disabled::before {
+            display: none;
+        }
+        
+        .list-item {
+            padding: 18px 22px;
+            margin: 10px 0;
+            background: white;
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .list-item::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            height: 100%;
+            width: 4px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            transform: scaleY(0);
+            transition: transform 0.3s ease;
+        }
+        
+        .list-item:hover {
+            background: #f7fafc;
+            border-color: #667eea;
+            transform: translateX(4px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
+        }
+        
+        .list-item:hover::before {
+            transform: scaleY(1);
+        }
+        
+        .list-item.selected {
+            background: linear-gradient(135deg, #e6f0ff 0%, #f0e6ff 100%);
+            border-color: #667eea;
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.25), 0 0 0 3px rgba(102, 126, 234, 0.1);
+            transform: translateX(4px);
+        }
+        
+        .list-item.selected::after {
+            content: '✓';
+            position: absolute;
+            right: 18px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #667eea;
+            font-weight: bold;
+            font-size: 20px;
+            background: white;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+        }
+        
+        .list-item.selected::before {
+            transform: scaleY(1);
+        }
+        
+        .list-item strong {
+            color: #1a202c;
+            display: block;
+            margin-bottom: 6px;
+            font-size: 16px;
+            font-weight: 600;
+        }
+        
+        .list-item small {
+            color: #4a5568;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+        
+        .list-item {
+            color: #1a202c;
+        }
+        
+        .loading {
+            color: #667eea;
+            font-style: italic;
+            padding: 20px;
+            text-align: center;
+            font-size: 16px;
+        }
+        
+        .loading::after {
+            content: '...';
+            animation: dots 1.5s steps(4, end) infinite;
+        }
+        
+        @keyframes dots {
+            0%, 20% { content: '.'; }
+            40% { content: '..'; }
+            60%, 100% { content: '...'; }
+        }
+        
+        .loading-small {
+            text-align: center;
+            padding: 10px;
+            color: #667eea;
+            font-size: 14px;
+        }
+        
+        .error {
+            color: #c53030;
+            background: linear-gradient(135deg, #fff5f5 0%, #fed7d7 100%);
+            padding: 18px 24px;
+            border-radius: 12px;
+            margin-top: 20px;
+            border-left: 4px solid #e53e3e;
+            font-weight: 500;
+            box-shadow: 0 4px 12px rgba(229, 62, 62, 0.15);
+        }
+        
+        .success {
+            color: #22543d;
+            background: linear-gradient(135deg, #f0fff4 0%, #c6f6d5 100%);
+            padding: 20px 24px;
+            border-radius: 12px;
+            margin-top: 20px;
+            border-left: 4px solid #38a169;
+            font-weight: 500;
+            box-shadow: 0 4px 12px rgba(56, 161, 105, 0.15);
+        }
+        
+        .success ul {
+            margin-top: 12px;
+            padding-left: 20px;
+        }
+        
+        .success ul {
+            list-style: none;
+            padding: 0;
+            margin-top: 16px;
+        }
+        
+        .success li {
+            margin: 10px 0;
+            padding: 14px 18px;
+            background: rgba(255, 255, 255, 0.8);
+            border-radius: 10px;
+            list-style: none;
+            position: relative;
+            padding-left: 45px;
+            border-left: 3px solid #38a169;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        }
+        
+        .success li:hover {
+            background: rgba(255, 255, 255, 0.95);
+            transform: translateX(4px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        
+        .success li::before {
+            content: '✓';
+            position: absolute;
+            left: 16px;
+            top: 14px;
+            color: #38a169;
+            font-weight: bold;
+            font-size: 18px;
+            background: white;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 6px rgba(56, 161, 105, 0.3);
+        }
+        
+        .html-preview {
+            border: 2px solid #e2e8f0;
+            padding: 24px;
+            background: #ffffff;
+            border-radius: 12px;
+            margin-top: 15px;
+            max-height: 600px;
+            overflow-y: auto;
+            box-shadow: inset 0 2px 8px rgba(0,0,0,0.05);
+            color: #1a202c;
+        }
+        
+        .html-preview * {
+            color: #1a202c !important;
+        }
+        
+        .html-preview p,
+        .html-preview section,
+        .html-preview div,
+        .html-preview span {
+            color: #1a202c !important;
+        }
+        
+        .html-preview::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        .html-preview::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 4px;
+        }
+        
+        .html-preview::-webkit-scrollbar-thumb {
+            background: #667eea;
+            border-radius: 4px;
+        }
+        
+        .html-preview::-webkit-scrollbar-thumb:hover {
+            background: #764ba2;
+        }
+        
+        .prompt-preview {
+            border: 2px solid #e2e8f0;
+            padding: 20px;
+            background: #ffffff;
+            border-radius: 12px;
+            margin-top: 15px;
+            max-height: 500px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            line-height: 1.8;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            color: #1a202c;
+        }
+        
+        .prompt-item {
+            padding: 14px 18px;
+            margin: 8px 0;
+            background: white;
+            border: 2px solid #e2e8f0;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .prompt-item:hover {
+            background: #f7fafc;
+            border-color: #667eea;
+            transform: translateX(4px);
+        }
+        
+        .prompt-item-title {
+            font-weight: 600;
+            color: #1a202c;
+            margin-bottom: 6px;
+        }
+        
+        .prompt-item-preview {
+            color: #4a5568;
+            font-size: 13px;
+            margin-top: 8px;
+            font-family: 'Courier New', monospace;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        
+        .prompt-item {
+            color: #1a202c;
+        }
+        
+        #promptDetail {
+            margin-top: 20px;
+            padding: 24px;
+            background: white;
+            border: 2px solid #667eea;
+            border-radius: 12px;
+        }
+        
+        #promptDetail h3 {
+            color: #1a202c;
+            margin-bottom: 16px;
+            font-size: 18px;
+            font-weight: 600;
+        }
+        
+        .prompt-preview {
+            color: #1a202c;
+        }
+        
+        /* 响应式设计 */
+        @media (max-width: 768px) {
+            .container {
+                padding: 20px;
+                border-radius: 16px;
+            }
+            
+            h1 {
+                font-size: 24px;
+            }
+            
+            .section {
+                padding: 20px;
+            }
+            
+            button {
+                width: 100%;
+                margin-right: 0;
+                margin-bottom: 10px;
+            }
+        }
+        
+        /* 动画效果 */
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .section {
+            animation: fadeIn 0.5s ease-out;
+        }
+        
+        .section:nth-child(1) { animation-delay: 0.1s; }
+        .section:nth-child(2) { animation-delay: 0.2s; }
+        .section:nth-child(3) { animation-delay: 0.3s; }
+        .section:nth-child(4) { animation-delay: 0.4s; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>✨ 文章生成系统</h1>
+        
+        <!-- 步骤1: 创建主题并生成标题 -->
+        <div class="section">
+            <h2>步骤 1: 创建主题并生成标题</h2>
+            <div class="form-group">
+                <label>📝 文章主题：</label>
+                <input type="text" id="topicInput" placeholder="例如：不要恋爱脑、职场甩锅、无效社交...">
+            </div>
+            <div class="form-group">
+                <label>📋 选择提示词模板（可选）：</label>
+                <select id="titlePromptSelect">
+                    <option value="">使用默认模板</option>
+                </select>
+            </div>
+            <button onclick="createTopic()">🚀 生成标题</button>
+            <div id="titlesResult"></div>
+        </div>
+        
+        <!-- 步骤2: 选择标题生成短文 -->
+        <div class="section">
+            <h2>步骤 2: 选择标题生成短文</h2>
+            <div class="form-group">
+                <label>📋 选择主题查看标题：</label>
+                <select id="topicSelect" onchange="loadTitles()">
+                    <option value="">-- 选择主题 --</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>📋 选择提示词模板（可选）：</label>
+                <select id="articlePromptSelect">
+                    <option value="">使用默认模板</option>
+                </select>
+            </div>
+            <div id="titlesList"></div>
+            <button onclick="generateArticles()" id="generateArticlesBtn" disabled>📄 为选中标题生成短文</button>
+            <div id="articlesResult"></div>
+        </div>
+        
+        <!-- 步骤3: 选择短文生成HTML -->
+        <div class="section">
+            <h2>步骤 3: 选择短文生成HTML</h2>
+            <div class="form-group">
+                <label>📋 选择提示词模板（可选）：</label>
+                <select id="htmlPromptSelect">
+                    <option value="">使用默认模板</option>
+                </select>
+            </div>
+            <div id="articlesList"></div>
+            <button onclick="generateHTML()" id="generateHTMLBtn" disabled>🎨 为选中短文生成HTML</button>
+            <div id="htmlResult"></div>
+        </div>
+        
+        <!-- 步骤3.5: 选择标题生成HTML并调用Coze API -->
+        <div class="section">
+            <h2>步骤 3.5: 选择标题生成HTML并调用Coze API</h2>
+            <div class="form-group">
+                <label>📋 选择主题查看标题：</label>
+                <select id="cozeTopicSelect" onchange="loadCozeTitles()">
+                    <option value="">-- 选择主题 --</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>📋 选择提示词模板（可选）：</label>
+                <select id="cozeHtmlPromptSelect">
+                    <option value="">使用默认模板</option>
+                </select>
+            </div>
+            <div id="cozeTitlesList"></div>
+            <button onclick="generateHTMLAndCallCoze()" id="generateCozeBtn" disabled>🚀 为选中标题生成HTML并调用Coze API</button>
+            <div id="cozeResult"></div>
+        </div>
+        
+        <!-- 步骤4: 查看HTML输出 -->
+        <div class="section">
+            <h2>步骤 4: 查看HTML输出</h2>
+            <button onclick="loadHTMLOutputs()">🔄 刷新HTML列表</button>
+            <div id="htmlOutputsList"></div>
+        </div>
+        
+        <!-- 步骤5: 提示词管理 -->
+        <div class="section">
+            <h2>📝 提示词管理</h2>
+            <div class="form-group">
+                <label>选择查看类型：</label>
+                <select id="promptTypeSelect" onchange="loadPrompts()">
+                    <option value="">-- 选择类型 --</option>
+                    <option value="titles">标题提示词</option>
+                    <option value="articles">短文提示词</option>
+                    <option value="html">HTML提示词</option>
+                </select>
+            </div>
+            <div id="promptsList"></div>
+            <div id="promptDetail" style="display: none;">
+                <button onclick="closePromptDetail()" style="background: #718096;">关闭</button>
+                <div id="promptContent"></div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        let selectedTitleIds = [];
+        let selectedArticleId = null;
+        
+        // 加载提示词模板列表
+        async function loadPromptTemplates(category, selectId) {
+            try {
+                const response = await fetch(`/api/prompts/${category}`);
+                const result = await response.json();
+                
+                if (result.success) {
+                    const select = document.getElementById(selectId);
+                    select.innerHTML = '<option value="">使用默认模板</option>';
+                    
+                    result.data.forEach(template => {
+                        const option = document.createElement('option');
+                        option.value = template.id;
+                        option.textContent = `${template.name}${template.is_default ? ' (默认)' : ''}`;
+                        if (template.is_default) {
+                            option.selected = true;
+                        }
+                        select.appendChild(option);
+                    });
+                }
+            } catch (error) {
+                console.error(`加载提示词模板失败 (${category}):`, error);
+            }
+        }
+        
+        // 加载主题列表
+        async function loadTopics() {
+            try {
+                const response = await fetch('/api/topics');
+                const result = await response.json();
+                
+                if (result.success) {
+                    const select = document.getElementById('topicSelect');
+                    select.innerHTML = '<option value="">-- 选择主题 --</option>';
+                    
+                    if (result.data && result.data.length > 0) {
+                        result.data.forEach(topic => {
+                            const option = document.createElement('option');
+                            option.value = topic.id;
+                            option.textContent = `${topic.topic_text} (${topic.titles_count || 0}个标题)`;
+                            select.appendChild(option);
+                        });
+                        
+                        // 如果有主题，自动选择第一个并加载标题
+                        if (result.data.length > 0) {
+                            select.value = result.data[0].id;
+                            loadTitles();
+                        }
+                    }
+                } else {
+                    console.error('加载主题失败:', result.error);
+                }
+            } catch (error) {
+                console.error('加载主题失败:', error);
+            }
+        }
+        
+        // 创建主题并生成标题
+        async function createTopic() {
+            const topicText = document.getElementById('topicInput').value.trim();
+            if (!topicText) {
+                alert('请输入主题');
+                return;
+            }
+            
+            const templateId = document.getElementById('titlePromptSelect').value || null;
+            
+            const resultDiv = document.getElementById('titlesResult');
+            resultDiv.innerHTML = '<div class="loading">正在生成标题</div>';
+            
+            try {
+                const response = await fetch('/api/topics', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        topic_text: topicText,
+                        template_id: templateId ? parseInt(templateId) : null
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    resultDiv.innerHTML = `
+                        <div class="success">
+                            ✅ 成功生成 ${result.data.titles.length} 个标题：
+                            <ul>
+                                ${result.data.titles.map((t, i) => `<li>${t}</li>`).join('')}
+                            </ul>
+                        </div>
+                    `;
+                    document.getElementById('topicInput').value = '';
+                    loadTopics();
+                } else {
+                    resultDiv.innerHTML = `<div class="error">❌ ${result.error}</div>`;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="error">❌ 生成失败: ${error.message}</div>`;
+            }
+        }
+        
+        // 加载标题列表
+        async function loadTitles() {
+            const topicId = document.getElementById('topicSelect').value;
+            if (!topicId) return;
+            
+            const titlesListDiv = document.getElementById('titlesList');
+            titlesListDiv.innerHTML = '<div class="loading">加载中</div>';
+            
+            try {
+                const response = await fetch(`/api/topics/${topicId}/titles`);
+                const result = await response.json();
+                
+                if (result.success) {
+                    selectedTitleIds = [];
+                    titlesListDiv.innerHTML = result.data.titles.map(title => `
+                        <div class="list-item" onclick="toggleTitle(${title.id})" id="title-${title.id}">
+                            ${title.title_text}
+                        </div>
+                    `).join('');
+                    
+                    document.getElementById('generateArticlesBtn').disabled = false;
+                } else {
+                    titlesListDiv.innerHTML = `<div class="error">❌ ${result.error}</div>`;
+                }
+            } catch (error) {
+                titlesListDiv.innerHTML = `<div class="error">❌ 加载失败: ${error.message}</div>`;
+            }
+        }
+        
+        // 切换标题选择
+        function toggleTitle(titleId) {
+            const index = selectedTitleIds.indexOf(titleId);
+            const item = document.getElementById(`title-${titleId}`);
+            
+            if (index > -1) {
+                selectedTitleIds.splice(index, 1);
+                item.classList.remove('selected');
+            } else {
+                selectedTitleIds.push(titleId);
+                item.classList.add('selected');
+            }
+        }
+        
+        // 生成短文
+        async function generateArticles() {
+            if (selectedTitleIds.length === 0) {
+                alert('请至少选择一个标题');
+                return;
+            }
+            
+            const templateId = document.getElementById('articlePromptSelect').value || null;
+            
+            const resultDiv = document.getElementById('articlesResult');
+            resultDiv.innerHTML = '<div class="loading">正在生成短文</div>';
+            
+            const results = [];
+            for (const titleId of selectedTitleIds) {
+                try {
+                    const response = await fetch(`/api/titles/${titleId}/articles`, {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({
+                            template_id: templateId ? parseInt(templateId) : null
+                        })
+                    });
+                    const result = await response.json();
+                    
+                    if (result.success) {
+                        results.push(`✅ 标题ID ${titleId}: 短文已生成（ID: ${result.data.article_id}）`);
+                    } else {
+                        results.push(`❌ 标题ID ${titleId}: ${result.error}`);
+                    }
+                } catch (error) {
+                    results.push(`❌ 标题ID ${titleId}: ${error.message}`);
+                }
+            }
+            
+            resultDiv.innerHTML = `<div class="success">${results.join('<br>')}</div>`;
+            loadArticles();
+        }
+        
+        // 加载短文列表
+        async function loadArticles() {
+            try {
+                const response = await fetch('/api/articles');
+                const result = await response.json();
+                
+                if (result.success) {
+                    const articlesListDiv = document.getElementById('articlesList');
+                    if (result.data && result.data.length > 0) {
+                        articlesListDiv.innerHTML = result.data.map(article => `
+                            <div class="list-item" onclick="selectArticle(${article.id})" id="article-${article.id}">
+                                <strong>${article.title_text}</strong>
+                                <small>${article.article_text ? article.article_text.substring(0, 100) + '...' : '暂无内容'}</small>
+                            </div>
+                        `).join('');
+                    } else {
+                        articlesListDiv.innerHTML = '<div class="loading">暂无短文，请先生成</div>';
+                    }
+                } else {
+                    console.error('加载短文失败:', result.error);
+                    const articlesListDiv = document.getElementById('articlesList');
+                    articlesListDiv.innerHTML = '<div class="error">❌ 加载失败: ' + (result.error || '未知错误') + '</div>';
+                }
+            } catch (error) {
+                console.error('加载短文失败:', error);
+                const articlesListDiv = document.getElementById('articlesList');
+                articlesListDiv.innerHTML = '<div class="error">❌ 加载失败: ' + error.message + '</div>';
+            }
+        }
+        
+        // 选择短文
+        function selectArticle(articleId) {
+            selectedArticleId = articleId;
+            
+            // 更新选中状态
+            document.querySelectorAll('#articlesList .list-item').forEach(item => {
+                item.classList.remove('selected');
+            });
+            document.getElementById(`article-${articleId}`).classList.add('selected');
+            
+            document.getElementById('generateHTMLBtn').disabled = false;
+        }
+        
+        // 生成HTML
+        async function generateHTML() {
+            if (!selectedArticleId) {
+                alert('请选择一个短文');
+                return;
+            }
+            
+            const templateId = document.getElementById('htmlPromptSelect').value || null;
+            
+            const resultDiv = document.getElementById('htmlResult');
+            resultDiv.innerHTML = '<div class="loading">正在生成HTML</div>';
+            
+            try {
+                const response = await fetch(`/api/articles/${selectedArticleId}/html`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        template_id: templateId ? parseInt(templateId) : null
+                    })
+                });
+                const result = await response.json();
+                
+                if (result.success) {
+                    resultDiv.innerHTML = `
+                        <div class="success">✅ HTML已生成（ID: ${result.data.html_id}）</div>
+                        <div class="html-preview" style="color: #1a202c;">${result.data.html_content}</div>
+                    `;
+                    loadHTMLOutputs();
+                } else {
+                    resultDiv.innerHTML = `<div class="error">❌ ${result.error}</div>`;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="error">❌ 生成失败: ${error.message}</div>`;
+            }
+        }
+        
+        // 加载HTML输出列表（仅显示列表，不加载内容）
+        async function loadHTMLOutputs() {
+            const htmlListDiv = document.getElementById('htmlOutputsList');
+            htmlListDiv.innerHTML = '<div class="loading">加载中</div>';
+            
+            try {
+                const response = await fetch('/api/html');
+                const result = await response.json();
+                
+                if (result.success) {
+                    if (result.data.length === 0) {
+                        htmlListDiv.innerHTML = '<div class="info">暂无HTML输出</div>';
+                    } else {
+                        htmlListDiv.innerHTML = result.data.map(html => `
+                            <div class="html-output-item" style="margin-bottom: 15px; padding: 20px; background: #ffffff; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 2px 8px rgba(0,0,0,0.05); cursor: pointer; transition: all 0.3s ease;" onclick="toggleHTMLOutput(${html.id}, this)">
+                                <div style="color: #2d3748; display: flex; justify-content: space-between; align-items: center;">
+                                    <div>
+                                        <strong style="color: #1a202c;">ID:</strong> <span style="color: #1a202c;">${html.id}</span> | 
+                                        <strong style="color: #1a202c;">短文:</strong> <span style="color: #1a202c;">${html.article_title}</span>
+                                    </div>
+                                    <div style="color: #667eea; font-size: 14px;">
+                                        <span class="expand-icon-${html.id}">▼</span> <span class="expand-text-${html.id}">点击展开</span>
+                                    </div>
+                                </div>
+                                <div id="html-content-${html.id}" style="display: none; margin-top: 15px; padding-top: 15px; border-top: 1px solid #e2e8f0;">
+                                    <div class="loading-small">加载中...</div>
+                                </div>
+                            </div>
+                        `).join('');
+                    }
+                } else {
+                    htmlListDiv.innerHTML = `<div class="error">❌ ${result.error}</div>`;
+                }
+            } catch (error) {
+                htmlListDiv.innerHTML = `<div class="error">❌ 加载失败: ${error.message}</div>`;
+            }
+        }
+        
+        // 切换HTML输出内容的显示/隐藏
+        async function toggleHTMLOutput(htmlId, element) {
+            const contentDiv = document.getElementById(`html-content-${htmlId}`);
+            const iconSpan = element.querySelector(`.expand-icon-${htmlId}`);
+            const textSpan = element.querySelector(`.expand-text-${htmlId}`);
+            
+            // 如果已经展开，直接折叠
+            if (contentDiv.style.display !== 'none') {
+                contentDiv.style.display = 'none';
+                iconSpan.textContent = '▼';
+                textSpan.textContent = '点击展开';
+                return;
+            }
+            
+            // 如果内容还没有加载，先加载
+            if (contentDiv.innerHTML.includes('加载中')) {
+                try {
+                    const response = await fetch(`/api/html/${htmlId}`);
+                    const result = await response.json();
+                    
+                    if (result.success) {
+                        contentDiv.innerHTML = `<div class="html-preview" style="color: #1a202c;">${result.data.html_content}</div>`;
+                        contentDiv.style.display = 'block';
+                        iconSpan.textContent = '▲';
+                        textSpan.textContent = '点击收起';
+                    } else {
+                        contentDiv.innerHTML = `<div class="error">❌ ${result.error}</div>`;
+                        contentDiv.style.display = 'block';
+                    }
+                } catch (error) {
+                    contentDiv.innerHTML = `<div class="error">❌ 加载失败: ${error.message}</div>`;
+                    contentDiv.style.display = 'block';
+                }
+            } else {
+                // 内容已加载，直接切换显示
+                contentDiv.style.display = 'block';
+                iconSpan.textContent = '▲';
+                textSpan.textContent = '点击收起';
+            }
+        }
+        
+        // 加载提示词列表
+        async function loadPrompts() {
+            const type = document.getElementById('promptTypeSelect').value;
+            if (!type) {
+                document.getElementById('promptsList').innerHTML = '';
+                return;
+            }
+            
+            const promptsListDiv = document.getElementById('promptsList');
+            promptsListDiv.innerHTML = '<div class="loading">加载中</div>';
+            
+            try {
+                let url = '';
+                if (type === 'titles') {
+                    // 获取所有主题，然后获取每个主题的标题
+                    const topicsRes = await fetch('/api/topics');
+                    const topicsResult = await topicsRes.json();
+                    
+                    if (!topicsResult.success) {
+                        promptsListDiv.innerHTML = `<div class="error">❌ ${topicsResult.error}</div>`;
+                        return;
+                    }
+                    
+                    let allPrompts = [];
+                    for (const topic of topicsResult.data) {
+                        const titlesRes = await fetch(`/api/topics/${topic.id}/titles`);
+                        const titlesResult = await titlesRes.json();
+                        if (titlesResult.success) {
+                            titlesResult.data.titles.forEach(title => {
+                                allPrompts.push({
+                                    id: title.id,
+                                    title: title.title_text,
+                                    prompt: title.prompt_text,
+                                    type: 'title'
+                                });
+                            });
+                        }
+                    }
+                    
+                    promptsListDiv.innerHTML = allPrompts.map(p => `
+                        <div class="prompt-item" onclick="showPromptDetail(${p.id}, 'title')">
+                            <div class="prompt-item-title">标题: ${p.title}</div>
+                            <div class="prompt-item-preview">${p.prompt.substring(0, 100)}...</div>
+                        </div>
+                    `).join('');
+                    return;
+                } else if (type === 'articles') {
+                    const response = await fetch('/api/articles');
+                    const result = await response.json();
+                    
+                    if (result.success) {
+                        promptsListDiv.innerHTML = result.data.map(article => `
+                            <div class="prompt-item" onclick="showPromptDetail(${article.id}, 'article')">
+                                <div class="prompt-item-title">短文: ${article.title_text}</div>
+                                <div class="prompt-item-preview">${article.prompt_text.substring(0, 100)}...</div>
+                            </div>
+                        `).join('');
+                    } else {
+                        promptsListDiv.innerHTML = `<div class="error">❌ ${result.error}</div>`;
+                    }
+                } else if (type === 'html') {
+                    const response = await fetch('/api/html');
+                    const result = await response.json();
+                    
+                    if (result.success) {
+                        promptsListDiv.innerHTML = result.data.map(html => `
+                            <div class="prompt-item" onclick="showPromptDetail(${html.id}, 'html')">
+                                <div class="prompt-item-title">HTML: ${html.article_title}</div>
+                                <div class="prompt-item-preview">${html.prompt_text.substring(0, 100)}...</div>
+                            </div>
+                        `).join('');
+                    } else {
+                        promptsListDiv.innerHTML = `<div class="error">❌ ${result.error}</div>`;
+                    }
+                }
+            } catch (error) {
+                promptsListDiv.innerHTML = `<div class="error">❌ 加载失败: ${error.message}</div>`;
+            }
+        }
+        
+        // 显示提示词详情
+        async function showPromptDetail(id, type) {
+            const detailDiv = document.getElementById('promptDetail');
+            const contentDiv = document.getElementById('promptContent');
+            
+            try {
+                let url = '';
+                if (type === 'title') {
+                    url = `/api/titles/${id}/prompt`;
+                } else if (type === 'article') {
+                    url = `/api/articles/${id}/prompt`;
+                } else if (type === 'html') {
+                    url = `/api/html/${id}/prompt`;
+                }
+                
+                const response = await fetch(url);
+                const result = await response.json();
+                
+                if (result.success) {
+                    let title = '';
+                    if (type === 'title') {
+                        title = `标题: ${result.data.title_text}`;
+                    } else if (type === 'article') {
+                        title = `短文: ${result.data.title_text}`;
+                    } else if (type === 'html') {
+                        title = `HTML: ${result.data.article_title}`;
+                    }
+                    
+                    contentDiv.innerHTML = `
+                        <h3>${title}</h3>
+                        <div class="prompt-preview">${escapeHtml(result.data.prompt_text)}</div>
+                    `;
+                    detailDiv.style.display = 'block';
+                    detailDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                } else {
+                    contentDiv.innerHTML = `<div class="error">❌ ${result.error}</div>`;
+                    detailDiv.style.display = 'block';
+                }
+            } catch (error) {
+                contentDiv.innerHTML = `<div class="error">❌ 加载失败: ${error.message}</div>`;
+                detailDiv.style.display = 'block';
+            }
+        }
+        
+        // 关闭提示词详情
+        function closePromptDetail() {
+            document.getElementById('promptDetail').style.display = 'none';
+        }
+        
+        // HTML转义函数
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        let selectedCozeTitleId = null;
+        
+        // 加载Coze主题列表（复用主题数据）
+        async function loadCozeTopics() {
+            try {
+                const response = await fetch('/api/topics');
+                const result = await response.json();
+                
+                if (result.success) {
+                    const select = document.getElementById('cozeTopicSelect');
+                    select.innerHTML = '<option value="">-- 选择主题 --</option>';
+                    
+                    if (result.data && result.data.length > 0) {
+                        result.data.forEach(topic => {
+                            const option = document.createElement('option');
+                            option.value = topic.id;
+                            option.textContent = `${topic.topic_text} (${topic.titles_count || 0}个标题)`;
+                            select.appendChild(option);
+                        });
+                    }
+                }
+            } catch (error) {
+                console.error('加载Coze主题失败:', error);
+            }
+        }
+        
+        // 加载Coze标题列表
+        async function loadCozeTitles() {
+            const topicId = document.getElementById('cozeTopicSelect').value;
+            if (!topicId) {
+                document.getElementById('cozeTitlesList').innerHTML = '';
+                return;
+            }
+            
+            const titlesListDiv = document.getElementById('cozeTitlesList');
+            titlesListDiv.innerHTML = '<div class="loading">加载中</div>';
+            
+            try {
+                const response = await fetch(`/api/topics/${topicId}/titles`);
+                const result = await response.json();
+                
+                if (result.success) {
+                    titlesListDiv.innerHTML = result.data.titles.map(title => `
+                        <div class="list-item" onclick="selectCozeTitle(${title.id})" id="coze-title-${title.id}">
+                            ${title.title_text}
+                        </div>
+                    `).join('');
+                    
+                    document.getElementById('generateCozeBtn').disabled = false;
+                } else {
+                    titlesListDiv.innerHTML = `<div class="error">❌ ${result.error}</div>`;
+                }
+            } catch (error) {
+                titlesListDiv.innerHTML = `<div class="error">❌ 加载失败: ${error.message}</div>`;
+            }
+        }
+        
+        // 选择Coze标题
+        function selectCozeTitle(titleId) {
+            selectedCozeTitleId = titleId;
+            
+            // 更新选中状态
+            document.querySelectorAll('#cozeTitlesList .list-item').forEach(item => {
+                item.classList.remove('selected');
+            });
+            document.getElementById(`coze-title-${titleId}`).classList.add('selected');
+            
+            document.getElementById('generateCozeBtn').disabled = false;
+        }
+        
+        // 生成HTML并调用Coze API
+        async function generateHTMLAndCallCoze() {
+            if (!selectedCozeTitleId) {
+                alert('请选择一个标题');
+                return;
+            }
+            
+            const htmlTemplateId = document.getElementById('cozeHtmlPromptSelect').value || null;
+            
+            const resultDiv = document.getElementById('cozeResult');
+            resultDiv.innerHTML = '<div class="loading">正在生成HTML并调用Coze API</div>';
+            
+            try {
+                const response = await fetch(`/api/titles/${selectedCozeTitleId}/coze`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        html_template_id: htmlTemplateId ? parseInt(htmlTemplateId) : null
+                    })
+                });
+                const result = await response.json();
+                
+                if (result.success) {
+                    resultDiv.innerHTML = `
+                        <div class="success">✅ 成功！HTML已生成并调用Coze API</div>
+                        <div style="margin-top: 15px; padding: 15px; background: #ffffff; border-radius: 8px; border: 1px solid #e2e8f0;">
+                            <div style="color: #1a202c; margin-bottom: 10px;"><strong style="color: #2d3748;">标题:</strong> <span style="color: #1a202c;">${result.data.title_text}</span></div>
+                            <div style="color: #1a202c; margin-bottom: 10px;"><strong style="color: #2d3748;">HTML ID:</strong> <span style="color: #1a202c;">${result.data.html_id}</span></div>
+                            <div style="color: #1a202c; margin-bottom: 10px;"><strong style="color: #2d3748;">Coze API响应:</strong></div>
+                            <pre style="background: #f7fafc; color: #1a202c !important; padding: 15px; border-radius: 4px; overflow-x: auto; margin-top: 10px; max-height: 400px; overflow-y: auto; border: 1px solid #e2e8f0; font-size: 13px; line-height: 1.5;">${JSON.stringify(result.data.coze_result, null, 2)}</pre>
+                        </div>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `<div class="error">❌ ${result.error}</div>`;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="error">❌ 生成失败: ${error.message}</div>`;
+            }
+        }
+        
+        // 页面加载时初始化
+        window.onload = function() {
+            // 先加载提示词模板（这些是静态数据，加载快）
+            loadPromptTemplates('title', 'titlePromptSelect');
+            loadPromptTemplates('article', 'articlePromptSelect');
+            loadPromptTemplates('html', 'htmlPromptSelect');
+            loadPromptTemplates('html', 'cozeHtmlPromptSelect');
+            
+            // 然后加载历史数据
+            loadTopics().then(() => {
+                // 主题加载完成后，如果有主题，自动加载第一个主题的标题
+                const topicSelect = document.getElementById('topicSelect');
+                if (topicSelect.options.length > 1) {
+                    // 选择第一个主题（跳过"选择主题"选项）
+                    topicSelect.selectedIndex = 1;
+                    loadTitles();
+                }
+            });
+            
+            // 加载Coze主题列表
+            loadCozeTopics();
+            
+            loadArticles();
+            loadHTMLOutputs();
+        };
+    </script>
+</body>
+</html>

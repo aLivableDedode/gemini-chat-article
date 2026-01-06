@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}文章生成系统{% endblock %}</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #e8ecf1 0%, #d1d9e6 100%);
+            min-height: 100vh;
+            padding: 20px;
+            line-height: 1.6;
+            color: #1a202c;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 50px;
+            border-radius: 24px;
+            box-shadow: 0 25px 70px rgba(0,0,0,0.15);
+            position: relative;
+        }
+        
+        .container::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 5px;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+            border-radius: 24px 24px 0 0;
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 30px;
+            font-size: 36px;
+            font-weight: 700;
+            text-align: center;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            letter-spacing: -0.5px;
+            position: relative;
+            padding-bottom: 20px;
+        }
+        
+        h1::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80px;
+            height: 4px;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            border-radius: 2px;
+        }
+        
+        /* 导航栏样式 */
+        .nav-bar {
+            background: #ffffff;
+            border-radius: 12px;
+            padding: 15px 20px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        
+        .nav-steps {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        
+        .nav-step {
+            padding: 8px 16px;
+            border-radius: 8px;
+            text-decoration: none;
+            color: #4a5568;
+            font-size: 14px;
+            transition: all 0.3s ease;
+            border: 2px solid transparent;
+        }
+        
+        .nav-step:hover {
+            background: #f7fafc;
+            border-color: #e2e8f0;
+        }
+        
+        .nav-step.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-color: #667eea;
+            font-weight: 600;
+        }
+        
+        .nav-actions {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .section {
+            margin-bottom: 35px;
+            padding: 30px;
+            background: #ffffff;
+            border-radius: 16px;
+            border: 1px solid #e9ecef;
+            border-left: 5px solid #667eea;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+            color: #1a202c;
+        }
+        
+        .section h2 {
+            color: #1a202c;
+            margin-bottom: 25px;
+            font-size: 24px;
+            font-weight: 600;
+        }
+        
+        .section * {
+            color: #1a202c;
+        }
+        
+        .section label {
+            color: #2d3748 !important;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #2d3748;
+            font-weight: 500;
+            font-size: 14px;
+        }
+        
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: all 0.3s ease;
+            background: #ffffff;
+            color: #1a202c;
+            font-family: inherit;
+        }
+        
+        .form-group textarea {
+            resize: vertical;
+            min-height: 120px;
+        }
+        
+        .form-group input::placeholder,
+        .form-group textarea::placeholder {
+            color: #a0aec0;
+        }
+        
+        .form-group input:focus,
+        .form-group select:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+            background: #ffffff;
+            color: #1a202c;
+        }
+        
+        .form-group input:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 14px 28px;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+        }
+        
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .list-item {
+            padding: 15px 20px;
+            margin-bottom: 10px;
+            background: #f7fafc;
+            border: 2px solid #e2e8f0;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+        
+        .list-item:hover {
+            background: #edf2f7;
+            border-color: #cbd5e0;
+            transform: translateX(4px);
+        }
+        
+        .list-item.selected {
+            background: linear-gradient(135deg, #e6f0ff 0%, #f0e6ff 100%);
+            border-color: #667eea;
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.25);
+        }
+        
+        .success {
+            color: #22543d;
+            background: linear-gradient(135deg, #f0fff4 0%, #c6f6d5 100%);
+            padding: 15px 20px;
+            border-radius: 10px;
+            margin: 15px 0;
+            border: 2px solid #9ae6b4;
+        }
+        
+        .error {
+            color: #c53030;
+            background: linear-gradient(135deg, #fff5f5 0%, #fed7d7 100%);
+            padding: 15px 20px;
+            border-radius: 10px;
+            margin: 15px 0;
+            border: 2px solid #fc8181;
+        }
+        
+        .info {
+            color: #2c5282;
+            background: linear-gradient(135deg, #ebf8ff 0%, #bee3f8 100%);
+            padding: 15px 20px;
+            border-radius: 10px;
+            margin: 15px 0;
+            border: 2px solid #90cdf4;
+        }
+        
+        .loading {
+            color: #667eea;
+            font-style: italic;
+            padding: 20px;
+            text-align: center;
+            font-size: 16px;
+        }
+        
+        .loading-small {
+            text-align: center;
+            padding: 10px;
+            color: #667eea;
+            font-size: 14px;
+        }
+        
+        .html-preview {
+            border: 2px solid #e2e8f0;
+            padding: 24px;
+            background: #ffffff;
+            border-radius: 12px;
+            margin-top: 15px;
+            max-height: 600px;
+            overflow-y: auto;
+        }
+        
+        .html-preview * {
+            color: #1a202c !important;
+        }
+        
+        .next-step-btn {
+            margin-top: 20px;
+            display: inline-block;
+        }
+        
+        .step-progress {
+            background: #ffffff;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            text-align: center;
+            color: #1a202c;
+            font-size: 14px;
+            border: 1px solid #e2e8f0;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        }
+    </style>
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    <div class="container">
+        <h1>✨ 文章生成系统</h1>
+        
+        <!-- 导航栏 -->
+        <nav class="nav-bar">
+            <div class="nav-steps">
+                <a href="/step1" class="nav-step" id="nav-step1">步骤1: 生成标题</a>
+                <a href="/step2" class="nav-step" id="nav-step2">步骤2: 生成短文</a>
+                <a href="/step3" class="nav-step" id="nav-step3">步骤3: 生成HTML</a>
+                <a href="/step4" class="nav-step" id="nav-step4">步骤4: 查看HTML</a>
+                <a href="/step5" class="nav-step" id="nav-step5">步骤5: Coze API</a>
+                <a href="/prompts" class="nav-step" id="nav-prompts">提示词管理</a>
+            </div>
+        </nav>
+        
+        <!-- 步骤进度提示 -->
+        {% block step_progress %}{% endblock %}
+        
+        <!-- 主要内容 -->
+        {% block content %}{% endblock %}
+    </div>
+    
+    <script>
+        // 设置当前导航项为激活状态
+        (function() {
+            const path = window.location.pathname;
+            let activeId = '';
+            if (path === '/step1' || path === '/') {
+                activeId = 'nav-step1';
+            } else if (path === '/step2') {
+                activeId = 'nav-step2';
+            } else if (path === '/step3') {
+                activeId = 'nav-step3';
+            } else if (path === '/step4') {
+                activeId = 'nav-step4';
+            } else if (path === '/step5') {
+                activeId = 'nav-step5';
+            } else if (path === '/prompts') {
+                activeId = 'nav-prompts';
+            }
+            
+            if (activeId) {
+                const activeNav = document.getElementById(activeId);
+                if (activeNav) {
+                    activeNav.classList.add('active');
+                }
+            }
+        })();
+        
+        // 公共JavaScript函数
+        async function loadPromptTemplates(category, selectId) {
+            try {
+                const response = await fetch(`/api/prompts/${category}`);
+                const result = await response.json();
+                
+                if (result.success) {
+                    const select = document.getElementById(selectId);
+                    if (select) {
+                        select.innerHTML = '<option value="">使用默认模板</option>';
+                        result.data.forEach(template => {
+                            const option = document.createElement('option');
+                            option.value = template.id;
+                            option.textContent = template.name;
+                            select.appendChild(option);
+                        });
+                    }
+                }
+            } catch (error) {
+                console.error('加载提示词模板失败:', error);
+            }
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+    </script>
+    {% block extra_js %}{% endblock %}
+</body>
+</html>
+
