@@ -52,14 +52,9 @@ def call_coze_api(title: str, content: str) -> Dict:
         "Content-Type": "application/json"
     }
     
-    # 尝试将 workflow_id 转换为整数（如果可能）
-    # 某些 API 可能需要整数类型而不是字符串
-    try:
-        workflow_id = int(COZE_WORKFLOW_ID)
-        logger.debug(f"使用整数格式的 workflow_id: {workflow_id}")
-    except (ValueError, TypeError):
-        workflow_id = COZE_WORKFLOW_ID
-        logger.debug(f"使用字符串格式的 workflow_id: {workflow_id}")
+    # workflow_id 必须是字符串格式
+    workflow_id = str(COZE_WORKFLOW_ID).strip()
+    logger.debug(f"使用字符串格式的 workflow_id: {workflow_id}")
     
     payload = {
         "workflow_id": workflow_id,
@@ -76,20 +71,48 @@ def call_coze_api(title: str, content: str) -> Dict:
         raise ValueError("内容不能为空")
     
     try:
-        logger.debug(f"发送请求到Coze API: {COZE_API_URL}")
-        logger.debug(f"请求负载: workflow_id={COZE_WORKFLOW_ID}, title_length={len(title)}, content_length={len(content)}")
+        # 记录请求信息（隐藏敏感信息）
+        safe_headers = headers.copy()
+        if 'Authorization' in safe_headers:
+            auth_value = safe_headers['Authorization']
+            # 只显示前20个字符和最后10个字符，中间用...代替
+            if len(auth_value) > 30:
+                safe_headers['Authorization'] = f"{auth_value[:20]}...{auth_value[-10:]}"
+            else:
+                safe_headers['Authorization'] = "***隐藏***"
+        
+        logger.info("=" * 80)
+        logger.info("Coze API 请求信息:")
+        logger.info(f"  请求地址: {COZE_API_URL}")
+        logger.info(f"  请求方法: POST")
+        logger.info(f"  请求头: {json.dumps(safe_headers, indent=2, ensure_ascii=False)}")
+        logger.info(f"  请求参数:")
+        logger.info(f"    workflow_id: {workflow_id} (类型: {type(workflow_id).__name__})")
+        logger.info(f"    parameters.title: {payload['parameters']['title'][:100]}{'...' if len(payload['parameters']['title']) > 100 else ''} (长度: {len(payload['parameters']['title'])})")
+        logger.info(f"    parameters.content: [HTML内容] (长度: {len(payload['parameters']['content'])})")
+        logger.info(f"  完整请求体: {json.dumps(payload, indent=2, ensure_ascii=False)}")
+        logger.info("=" * 80)
+        
         response = requests.post(COZE_API_URL, headers=headers, json=payload, timeout=120)
         
-        logger.info(f"Coze API响应状态码: {response.status_code}")
+        # 记录响应信息
+        logger.info("=" * 80)
+        logger.info("Coze API 响应信息:")
+        logger.info(f"  响应状态码: {response.status_code}")
+        logger.info(f"  响应头: {dict(response.headers)}")
         
         # 尝试解析响应（无论状态码如何）
         result = None
         response_text = response.text
+        logger.info(f"  响应内容长度: {len(response_text)} 字符")
+        logger.info(f"  响应内容预览 (前500字符): {response_text[:500]}")
+        logger.info("=" * 80)
         
         # 首先尝试解析为 JSON
         try:
             result = response.json()
-            logger.debug(f"Coze API响应内容 (JSON): {result}")
+            logger.info(f"  响应解析为JSON成功")
+            logger.info(f"  解析后的响应数据: {json.dumps(result, indent=2, ensure_ascii=False)}")
         except ValueError:
             # 如果不是 JSON，可能是流式响应（SSE格式）或纯文本
             logger.debug(f"Coze API响应不是JSON格式，响应长度: {len(response_text)}")
@@ -115,7 +138,8 @@ def call_coze_api(title: str, content: str) -> Dict:
                         result = sse_data[0]
                     else:
                         result = {'stream_data': sse_data, 'raw_response': response_text[:1000]}
-                    logger.debug(f"解析SSE数据成功，共 {len(sse_data)} 条")
+                    logger.info(f"  解析SSE数据成功，共 {len(sse_data)} 条")
+                    logger.info(f"  解析后的SSE数据: {json.dumps(result, indent=2, ensure_ascii=False) if isinstance(result, dict) else str(result)}")
             else:
                 # 纯文本响应，尝试提取有用信息
                 logger.info("响应为纯文本格式")
