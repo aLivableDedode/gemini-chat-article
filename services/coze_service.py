@@ -10,7 +10,7 @@ from utils.logger import logger
 # Coze API配置
 COZE_API_URL = "https://api.coze.cn/v1/workflow/stream_run"
 # workflow_id 可以从环境变量获取，如果没有则使用默认值
-COZE_WORKFLOW_ID = "7590055614313087003"
+COZE_WORKFLOW_ID = os.getenv("COZE_WORKFLOW_ID", "7590055614313087003")
 
 def _get_coze_authorization() -> str:
     """获取Coze API授权令牌"""
@@ -123,9 +123,24 @@ def call_coze_api(title: str, content: str) -> Dict:
         
         if response.status_code != 200:
             error_msg = "未知错误"
+            error_code = None
+            
             if result:
                 # 尝试从JSON响应中提取错误信息
                 if isinstance(result, dict):
+                    # 优先检查 Coze API 的错误格式
+                    if 'error_code' in result or 'error_message' in result:
+                        error_code = result.get('error_code', '未知')
+                        error_message = result.get('error_message', result.get('message', '未知错误'))
+                        logger.error(f"Coze API请求失败: status_code={response.status_code}, error_code={error_code}, error_message={error_message}")
+                        
+                        # 针对特定错误码提供更友好的提示
+                        if error_code == 4200:
+                            raise Exception(f"Workflow 不存在 (HTTP {response.status_code}, 错误码: {error_code})。请检查 COZE_WORKFLOW_ID 是否正确，当前值: {COZE_WORKFLOW_ID}。错误详情: {error_message}")
+                        else:
+                            raise Exception(f"Coze API 请求失败 [HTTP {response.status_code}, 错误码: {error_code}]: {error_message}")
+                    
+                    # 其他错误格式
                     error_msg = result.get('message', result.get('error', result.get('detail', str(result))))
                     # 如果是嵌套的错误信息
                     if 'error' in result and isinstance(result['error'], dict):
@@ -136,10 +151,22 @@ def call_coze_api(title: str, content: str) -> Dict:
                 error_msg = response.text[:500]  # 限制错误信息长度
             
             logger.error(f"Coze API请求失败: status_code={response.status_code}, error={error_msg}")
-            raise Exception(f"Coze API 请求失败 [Code: {response.status_code}]: {error_msg}")
+            raise Exception(f"Coze API 请求失败 [HTTP {response.status_code}]: {error_msg}")
         
-        # 状态码200，但可能响应中仍有错误信息
+        # 检查响应中是否包含错误信息（无论状态码如何）
         if result and isinstance(result, dict):
+            # 检查 Coze API 的错误格式：error_code 和 error_message
+            if 'error_code' in result or 'error_message' in result:
+                error_code = result.get('error_code', '未知')
+                error_message = result.get('error_message', result.get('message', '未知错误'))
+                logger.error(f"Coze API返回错误: error_code={error_code}, error_message={error_message}")
+                
+                # 针对特定错误码提供更友好的提示
+                if error_code == 4200:
+                    raise Exception(f"Workflow 不存在 (错误码: {error_code})。请检查 COZE_WORKFLOW_ID 是否正确，当前值: {COZE_WORKFLOW_ID}。错误详情: {error_message}")
+                else:
+                    raise Exception(f"Coze API 错误 (错误码: {error_code}): {error_message}")
+            
             # 检查是否有错误字段
             if 'error' in result:
                 error_msg = result.get('error')
@@ -147,6 +174,7 @@ def call_coze_api(title: str, content: str) -> Dict:
                     error_msg = error_msg.get('message', str(error_msg))
                 logger.error(f"Coze API返回错误信息: {error_msg}")
                 raise Exception(f"Coze API 错误: {error_msg}")
+            
             # 检查 message 字段是否包含错误信息
             if 'message' in result:
                 message = str(result.get('message', ''))
