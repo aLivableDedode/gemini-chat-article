@@ -55,7 +55,10 @@ secrets/
 # Output files
 output_*.txt
 output_*.html
+
+# HTML files (but keep templates)
 *.html
+!templates/**/*.html
 
 # Temporary files
 *.tmp
