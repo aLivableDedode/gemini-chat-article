@@ -7,6 +7,7 @@ from models import Topic, Title, Article, HTMLOutput
 from services.title_service import generate_titles, save_titles_to_db
 from services.article_service import generate_article, save_article_to_db
 from services.html_service import generate_html, save_html_to_db
+from services.prompt_service import init_prompt_templates
 
 
 def print_separator():
@@ -26,7 +27,8 @@ def print_menu():
     print("5. 查看短文")
     print("6. 选择短文生成HTML")
     print("7. 查看HTML输出")
-    print("8. 退出")
+    print("8. 导入提示词模板到数据库")
+    print("9. 退出")
     print_separator()
 
 
@@ -257,6 +259,31 @@ def view_html_outputs():
         db.close()
 
 
+def import_prompt_templates():
+    """导入提示词模板到数据库"""
+    print_separator()
+    print("正在导入提示词模板...")
+    
+    try:
+        init_prompt_templates()
+        print("✅ 提示词模板导入成功！")
+        
+        # 显示导入的模板统计
+        db = get_db_session()
+        try:
+            from models import PromptTemplate
+            templates = db.query(PromptTemplate).all()
+            print(f"\n已导入 {len(templates)} 个模板：")
+            for template in templates:
+                default_mark = " (默认)" if template.is_default else ""
+                print(f"  - [{template.category}] {template.name}{default_mark}")
+        finally:
+            db.close()
+            
+    except Exception as e:
+        print(f"❌ 导入失败: {e}")
+
+
 def main():
     """主函数"""
     # 初始化数据库
@@ -264,7 +291,7 @@ def main():
     
     while True:
         print_menu()
-        choice = input("请选择操作 (1-8): ").strip()
+        choice = input("请选择操作 (1-9): ").strip()
         
         if choice == "1":
             create_topic_and_generate_titles()
@@ -281,6 +308,8 @@ def main():
         elif choice == "7":
             view_html_outputs()
         elif choice == "8":
+            import_prompt_templates()
+        elif choice == "9":
             print("再见！")
             sys.exit(0)
         else:
