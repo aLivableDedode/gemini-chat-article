@@ -93,7 +93,8 @@ def call_coze_api(title: str, content: str) -> Dict:
         logger.info(f"  完整请求体: {json.dumps(payload, indent=2, ensure_ascii=False)}")
         logger.info("=" * 80)
         
-        response = requests.post(COZE_API_URL, headers=headers, json=payload, timeout=120)
+        # 设置较长的超时时间，因为 Coze API 可能需要较长时间处理
+        response = requests.post(COZE_API_URL, headers=headers, json=payload, timeout=300)
         
         # 记录响应信息
         logger.info("=" * 80)
