@@ -10,8 +10,7 @@ from utils.logger import logger
 # Coze API配置
 COZE_API_URL = "https://api.coze.cn/v1/workflow/stream_run"
 # workflow_id 可以从环境变量获取，如果没有则使用默认值
-COZE_WORKFLOW_ID = os.getenv("COZE_WORKFLOW_ID", "7590055614313087003")
-
+COZE_WORKFLOW_ID = "7590055614313087003"
 
 def _get_coze_authorization() -> str:
     """获取Coze API授权令牌"""
