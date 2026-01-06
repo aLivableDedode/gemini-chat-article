@@ -1,0 +1,13 @@
+# 核心依赖
+flask==3.0.0
+sqlalchemy==2.0.23
+requests==2.31.0
+
+# 可选依赖（用于.env文件支持）
+# python-dotenv==1.0.0
+
+# 可选依赖（如果使用MySQL数据库）
+# pymysql==1.1.0
+# 或者使用
+# mysqlclient==2.2.0
+
