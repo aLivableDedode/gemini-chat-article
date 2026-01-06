@@ -31,6 +31,13 @@
 
 {% block extra_js %}
 <script>
+    // HTML 转义函数
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+    
     let selectedCozeTitleId = null;
     
     // 页面加载时初始化
@@ -129,13 +136,41 @@
             const result = await response.json();
             
             if (result.success) {
+                // 格式化 Coze API 响应
+                let cozeResultHtml = '';
+                const cozeResult = result.data.coze_result;
+                
+                if (cozeResult) {
+                    if (cozeResult.response_type === 'text') {
+                        // 文本响应
+                        cozeResultHtml = `
+                            <div style="color: #1a202c; margin-bottom: 10px;"><strong style="color: #2d3748;">响应类型:</strong> <span style="color: #1a202c;">文本 (${cozeResult.full_length} 字符)</span></div>
+                            <pre style="background: #f7fafc; color: #1a202c !important; padding: 15px; border-radius: 4px; overflow-x: auto; margin-top: 10px; max-height: 400px; overflow-y: auto; border: 1px solid #e2e8f0; font-size: 13px; line-height: 1.5; white-space: pre-wrap; word-wrap: break-word;">${escapeHtml(cozeResult.content)}</pre>
+                        `;
+                    } else if (cozeResult.stream_data) {
+                        // SSE 流式数据
+                        cozeResultHtml = `
+                            <div style="color: #1a202c; margin-bottom: 10px;"><strong style="color: #2d3748;">响应类型:</strong> <span style="color: #1a202c;">流式数据 (${cozeResult.stream_data.length} 条)</span></div>
+                            <pre style="background: #f7fafc; color: #1a202c !important; padding: 15px; border-radius: 4px; overflow-x: auto; margin-top: 10px; max-height: 400px; overflow-y: auto; border: 1px solid #e2e8f0; font-size: 13px; line-height: 1.5;">${JSON.stringify(cozeResult.stream_data, null, 2)}</pre>
+                        `;
+                    } else {
+                        // JSON 响应
+                        cozeResultHtml = `
+                            <div style="color: #1a202c; margin-bottom: 10px;"><strong style="color: #2d3748;">响应类型:</strong> <span style="color: #1a202c;">JSON</span></div>
+                            <pre style="background: #f7fafc; color: #1a202c !important; padding: 15px; border-radius: 4px; overflow-x: auto; margin-top: 10px; max-height: 400px; overflow-y: auto; border: 1px solid #e2e8f0; font-size: 13px; line-height: 1.5;">${JSON.stringify(cozeResult, null, 2)}</pre>
+                        `;
+                    }
+                } else {
+                    cozeResultHtml = '<div style="color: #1a202c;">无响应数据</div>';
+                }
+                
                 resultDiv.innerHTML = `
                     <div class="success">✅ 成功！HTML已生成并调用Coze API</div>
                     <div style="margin-top: 15px; padding: 15px; background: #ffffff; border-radius: 8px; border: 1px solid #e2e8f0;">
-                        <div style="color: #1a202c; margin-bottom: 10px;"><strong style="color: #2d3748;">标题:</strong> <span style="color: #1a202c;">${result.data.title_text}</span></div>
+                        <div style="color: #1a202c; margin-bottom: 10px;"><strong style="color: #2d3748;">标题:</strong> <span style="color: #1a202c;">${escapeHtml(result.data.title_text)}</span></div>
                         <div style="color: #1a202c; margin-bottom: 10px;"><strong style="color: #2d3748;">HTML ID:</strong> <span style="color: #1a202c;">${result.data.html_id}</span></div>
                         <div style="color: #1a202c; margin-bottom: 10px;"><strong style="color: #2d3748;">Coze API响应:</strong></div>
-                        <pre style="background: #f7fafc; color: #1a202c !important; padding: 15px; border-radius: 4px; overflow-x: auto; margin-top: 10px; max-height: 400px; overflow-y: auto; border: 1px solid #e2e8f0; font-size: 13px; line-height: 1.5;">${JSON.stringify(result.data.coze_result, null, 2)}</pre>
+                        ${cozeResultHtml}
                     </div>
                 `;
             } else {
