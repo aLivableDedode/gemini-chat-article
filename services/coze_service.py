@@ -94,7 +94,7 @@ def call_coze_api(title: str, content: str) -> Dict:
         logger.info("=" * 80)
         
         # 设置较长的超时时间，因为 Coze API 可能需要较长时间处理
-        response = requests.post(COZE_API_URL, headers=headers, json=payload, timeout=300)
+        response = requests.post(COZE_API_URL, headers=headers, json=payload, timeout=600)
         
         # 记录响应信息
         logger.info("=" * 80)

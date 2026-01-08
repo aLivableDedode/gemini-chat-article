@@ -52,7 +52,7 @@ def get_gemini_response(prompt: str) -> str:
 
     # 3. 发送请求
     try:
-        response = requests.post(url, headers=headers, json=payload, timeout=120)
+        response = requests.post(url, headers=headers, json=payload, timeout=180)
         
         # 检查 HTTP 状态码
         if response.status_code != 200:
