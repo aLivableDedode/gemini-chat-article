@@ -373,33 +373,32 @@
         
         // 公共JavaScript函数
         async function loadPromptTemplates(category, selectId) {
+            const select = document.getElementById(selectId);
+            if (!select) {
+                console.error('loadPromptTemplates: 元素不存在', selectId);
+                return;
+            }
+            
             try {
-                const response = await fetch(`/api/prompts/${category}`);
-                const result = await response.json();
-                
-                if (result.success) {
-                    const select = document.getElementById(selectId);
-                    if (select) {
-                        select.innerHTML = '<option value="">使用默认模板</option>';
-                        result.data.forEach(template => {
-                            const option = document.createElement('option');
-                            option.value = template.id;
-                            option.textContent = template.name;
-                            select.appendChild(option);
-                        });
+                const result = await apiCall(`/prompts/${category}`);
+                select.innerHTML = '<option value="">使用默认模板</option>';
+                result.data.forEach(template => {
+                    const option = document.createElement('option');
+                    option.value = template.id;
+                    option.textContent = `${template.name}${template.is_default ? ' (默认)' : ''}`;
+                    if (template.is_default) {
+                        option.selected = true;
                     }
-                }
+                    select.appendChild(option);
+                });
             } catch (error) {
                 console.error('加载提示词模板失败:', error);
             }
         }
         
-        function escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
-        }
     </script>
+    <!-- MVP优化：引入统一工具函数库 -->
+    <script src="{{ url_for('static', filename='js/utils.js') }}"></script>
     {% block extra_js %}{% endblock %}
 </body>
 </html>

@@ -36,26 +36,23 @@
     // 加载短文列表
     async function loadArticles() {
         const articlesListDiv = document.getElementById('articlesList');
-        articlesListDiv.innerHTML = '<div class="loading">加载中</div>';
+        showLoading(articlesListDiv, '加载中...');
         
         try {
-            const response = await fetch('/api/articles');
-            const result = await response.json();
+            const result = await apiCall('/articles');
             
-            if (result.success) {
-                if (result.data.length === 0) {
-                    articlesListDiv.innerHTML = '<div class="info">暂无短文，请先完成步骤2</div>';
-                } else {
-                    articlesListDiv.innerHTML = result.data.map(article => `
-                        <div class="list-item" onclick="selectArticle(${article.id})" id="article-${article.id}">
-                            <strong>${article.title_text}</strong>
-                            <small style="display: block; margin-top: 5px; color: #718096;">${article.article_text ? article.article_text.substring(0, 100) + '...' : '暂无内容'}</small>
-                        </div>
-                    `).join('');
-                }
+            if (result.data.length === 0) {
+                articlesListDiv.innerHTML = '<div class="info">暂无短文，请先完成步骤2</div>';
+            } else {
+                articlesListDiv.innerHTML = result.data.map(article => `
+                    <div class="list-item" onclick="selectArticle(${article.id})" id="article-${article.id}">
+                        <strong>${escapeHtml(article.title_text)}</strong>
+                        <small style="display: block; margin-top: 5px; color: #718096;">${escapeHtml(article.article_text ? article.article_text.substring(0, 100) + '...' : '暂无内容')}</small>
+                    </div>
+                `).join('');
             }
         } catch (error) {
-            articlesListDiv.innerHTML = `<div class="error">❌ 加载失败: ${error.message}</div>`;
+            showError(articlesListDiv, `加载失败: ${error.message}`);
         }
     }
     
@@ -74,40 +71,40 @@
     // 生成HTML
     async function generateHTML() {
         if (!selectedArticleId) {
-            alert('请选择一个短文');
+            showError(document.getElementById('htmlResult'), '请选择一个短文');
             return;
         }
         
         const templateId = document.getElementById('htmlPromptSelect').value || null;
         const resultDiv = document.getElementById('htmlResult');
-        resultDiv.innerHTML = '<div class="loading">正在生成HTML</div>';
+        const btn = document.getElementById('generateHTMLBtn');
+        
+        // 禁用按钮，防止重复提交
+        btn.disabled = true;
+        showLoading(resultDiv, '正在生成HTML...');
         
         try {
-            const response = await fetch(`/api/articles/${selectedArticleId}/html`, {
+            const result = await apiCall(`/articles/${selectedArticleId}/html`, {
                 method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({
+                body: {
                     template_id: templateId ? parseInt(templateId) : null
-                })
+                }
             });
-            const result = await response.json();
             
-            if (result.success) {
-                resultDiv.innerHTML = `
-                    <div class="success">✅ HTML已生成（ID: ${result.data.html_id}）</div>
-                    <div class="html-preview" style="color: #1a202c;">${result.data.html_content}</div>
-                    <div style="margin-top: 20px;">
-                        <a href="/step4" class="next-step-btn">
-                            <button>➡️ 下一步：查看HTML输出</button>
-                        </a>
-                    </div>
-                `;
-                loadArticles();
-            } else {
-                resultDiv.innerHTML = `<div class="error">❌ ${result.error}</div>`;
-            }
+            resultDiv.innerHTML = `
+                <div class="success">✅ HTML已生成（ID: ${result.data.html_id}）</div>
+                <div class="html-preview" style="color: #1a202c;">${result.data.html_content}</div>
+                <div style="margin-top: 20px;">
+                    <a href="/step4" class="next-step-btn">
+                        <button>➡️ 下一步：查看HTML输出</button>
+                    </a>
+                </div>
+            `;
+            loadArticles();
         } catch (error) {
-            resultDiv.innerHTML = `<div class="error">❌ 生成失败: ${error.message}</div>`;
+            showError(resultDiv, `生成失败: ${error.message}`);
+        } finally {
+            btn.disabled = false;
         }
     }
 </script>

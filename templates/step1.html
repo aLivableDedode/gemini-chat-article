@@ -85,55 +85,54 @@
     async function createTopic() {
         const topicText = document.getElementById('topicInput').value.trim();
         if (!topicText) {
-            alert('请输入文章主题');
+            showError(document.getElementById('titlesResult'), '请输入文章主题');
             return;
         }
         
         const templateId = document.getElementById('titlePromptSelect').value || null;
         const resultDiv = document.getElementById('titlesResult');
-        resultDiv.innerHTML = '<div class="loading">正在生成标题</div>';
+        const btn = event.target;
+        
+        // 禁用按钮，防止重复提交
+        btn.disabled = true;
+        showLoading(resultDiv, '正在生成标题...');
         
         try {
-            const response = await fetch('/api/topics', {
+            const result = await apiCall('/topics', {
                 method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({
+                body: {
                     topic_text: topicText,
                     template_id: templateId ? parseInt(templateId) : null
-                })
+                }
             });
-            const result = await response.json();
             
-            if (result.success) {
-                // 处理返回的数据格式
-                const topicText = result.data.topic_text || topicText;
-                const titles = result.data.titles || [];
-                
-                resultDiv.innerHTML = `
-                    <div class="success">✅ 成功生成 ${titles.length} 个标题！</div>
-                    <div style="margin-top: 15px;">
-                        <strong>主题：</strong> ${result.data.topic_text || topicText}<br>
-                        <strong>标题列表：</strong>
-                        <ul style="margin-top: 10px; padding-left: 20px;">
-                            ${titles.map(t => {
-                                // 处理不同的数据格式：可能是字符串数组，也可能是对象数组
-                                const titleText = typeof t === 'string' ? t : (t.title_text || t);
-                                return `<li style="margin: 8px 0; color: #1a202c;">${escapeHtml(titleText)}</li>`;
-                            }).join('')}
-                        </ul>
-                    </div>
-                    <div style="margin-top: 20px;">
-                        <a href="/step2" class="next-step-btn">
-                            <button>➡️ 下一步：选择标题生成短文</button>
-                        </a>
-                    </div>
-                `;
-                document.getElementById('topicInput').value = '';
-            } else {
-                resultDiv.innerHTML = `<div class="error">❌ ${result.error}</div>`;
-            }
+            // 处理返回的数据格式
+            const titles = result.data.titles || [];
+            
+            resultDiv.innerHTML = `
+                <div class="success">✅ 成功生成 ${titles.length} 个标题！</div>
+                <div style="margin-top: 15px;">
+                    <strong>主题：</strong> ${escapeHtml(result.data.topic_text || topicText)}<br>
+                    <strong>标题列表：</strong>
+                    <ul style="margin-top: 10px; padding-left: 20px;">
+                        ${titles.map(t => {
+                            // 处理不同的数据格式：可能是字符串数组，也可能是对象数组
+                            const titleText = typeof t === 'string' ? t : (t.title_text || t);
+                            return `<li style="margin: 8px 0; color: #1a202c;">${escapeHtml(titleText)}</li>`;
+                        }).join('')}
+                    </ul>
+                </div>
+                <div style="margin-top: 20px;">
+                    <a href="/step2" class="next-step-btn">
+                        <button>➡️ 下一步：选择标题生成短文</button>
+                    </a>
+                </div>
+            `;
+            document.getElementById('topicInput').value = '';
         } catch (error) {
-            resultDiv.innerHTML = `<div class="error">❌ 生成失败: ${error.message}</div>`;
+            showError(resultDiv, `生成失败: ${error.message}`);
+        } finally {
+            btn.disabled = false;
         }
     }
     
@@ -143,12 +142,12 @@
         const titlesText = document.getElementById('customTitlesInput').value.trim();
         
         if (!topicText) {
-            alert('请输入文章主题');
+            showError(document.getElementById('titlesResult'), '请输入文章主题');
             return;
         }
         
         if (!titlesText) {
-            alert('请输入至少一个标题');
+            showError(document.getElementById('titlesResult'), '请输入至少一个标题');
             return;
         }
         
@@ -158,47 +157,47 @@
             .filter(t => t.length > 0);
         
         if (titles.length === 0) {
-            alert('请输入至少一个有效的标题');
+            showError(document.getElementById('titlesResult'), '请输入至少一个有效的标题');
             return;
         }
         
         const resultDiv = document.getElementById('titlesResult');
-        resultDiv.innerHTML = '<div class="loading">正在保存标题</div>';
+        const btn = event.target;
+        
+        // 禁用按钮，防止重复提交
+        btn.disabled = true;
+        showLoading(resultDiv, '正在保存标题...');
         
         try {
-            const response = await fetch('/api/topics/custom', {
+            const result = await apiCall('/topics/custom', {
                 method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({
+                body: {
                     topic_text: topicText,
                     titles: titles
-                })
+                }
             });
-            const result = await response.json();
             
-            if (result.success) {
-                resultDiv.innerHTML = `
-                    <div class="success">✅ 成功保存 ${result.data.titles.length} 个自定义标题！</div>
-                    <div style="margin-top: 15px;">
-                        <strong>主题：</strong> ${result.data.topic_text}<br>
-                        <strong>标题列表：</strong>
-                        <ul style="margin-top: 10px; padding-left: 20px;">
-                            ${result.data.titles.map(t => `<li style="margin: 8px 0; color: #1a202c;">${t.title_text}</li>`).join('')}
-                        </ul>
-                    </div>
-                    <div style="margin-top: 20px;">
-                        <a href="/step2" class="next-step-btn">
-                            <button>➡️ 下一步：选择标题生成短文</button>
-                        </a>
-                    </div>
-                `;
-                document.getElementById('customTopicInput').value = '';
-                document.getElementById('customTitlesInput').value = '';
-            } else {
-                resultDiv.innerHTML = `<div class="error">❌ ${result.error}</div>`;
-            }
+            resultDiv.innerHTML = `
+                <div class="success">✅ 成功保存 ${result.data.titles.length} 个自定义标题！</div>
+                <div style="margin-top: 15px;">
+                    <strong>主题：</strong> ${escapeHtml(result.data.topic_text)}<br>
+                    <strong>标题列表：</strong>
+                    <ul style="margin-top: 10px; padding-left: 20px;">
+                        ${result.data.titles.map(t => `<li style="margin: 8px 0; color: #1a202c;">${escapeHtml(t.title_text)}</li>`).join('')}
+                    </ul>
+                </div>
+                <div style="margin-top: 20px;">
+                    <a href="/step2" class="next-step-btn">
+                        <button>➡️ 下一步：选择标题生成短文</button>
+                    </a>
+                </div>
+            `;
+            document.getElementById('customTopicInput').value = '';
+            document.getElementById('customTitlesInput').value = '';
         } catch (error) {
-            resultDiv.innerHTML = `<div class="error">❌ 保存失败: ${error.message}</div>`;
+            showError(resultDiv, `保存失败: ${error.message}`);
+        } finally {
+            btn.disabled = false;
         }
     }
 </script>

@@ -93,23 +93,24 @@
     
     // 加载主题列表
     async function loadTopics() {
+        const select = document.getElementById('topicSelect');
+        if (!select) return;
+        
         try {
-            const response = await fetch('/api/topics');
-            const result = await response.json();
+            const result = await apiCall('/topics');
+            select.innerHTML = '<option value="">-- 选择主题 --</option>';
             
-            if (result.success) {
-                const select = document.getElementById('topicSelect');
-                select.innerHTML = '<option value="">-- 选择主题 --</option>';
-                
                 if (result.data && result.data.length > 0) {
-                    result.data.forEach(topic => {
-                        const option = document.createElement('option');
-                        option.value = topic.id;
-                        option.textContent = `${topic.topic_text} (${topic.titles_count || 0}个标题)`;
-                        select.appendChild(option);
-                    });
+                    // 只显示有标题的主题（titles_count > 0）
+                    result.data
+                        .filter(topic => (topic.titles_count || 0) > 0)
+                        .forEach(topic => {
+                            const option = document.createElement('option');
+                            option.value = topic.id;
+                            option.textContent = `${topic.topic_text} (${topic.titles_count}个标题)`;
+                            select.appendChild(option);
+                        });
                 }
-            }
         } catch (error) {
             console.error('加载主题失败:', error);
         }
@@ -118,32 +119,27 @@
     // 加载标题列表
     async function loadTitles() {
         const topicId = document.getElementById('topicSelect').value;
+        const titlesListDiv = document.getElementById('titlesList');
+        
         if (!topicId) {
-            document.getElementById('titlesList').innerHTML = '';
+            titlesListDiv.innerHTML = '';
             return;
         }
         
-        const titlesListDiv = document.getElementById('titlesList');
-        titlesListDiv.innerHTML = '<div class="loading">加载中</div>';
+        showLoading(titlesListDiv, '加载标题中...');
         
         try {
-            const response = await fetch(`/api/topics/${topicId}/titles`);
-            const result = await response.json();
+            const result = await apiCall(`/topics/${topicId}/titles`);
+            selectedTitleIds = [];
+            titlesListDiv.innerHTML = result.data.titles.map(title => `
+                <div class="list-item" onclick="toggleTitle(${title.id})" id="title-${title.id}">
+                    ${escapeHtml(title.title_text)}
+                </div>
+            `).join('');
             
-            if (result.success) {
-                selectedTitleIds = [];
-                titlesListDiv.innerHTML = result.data.titles.map(title => `
-                    <div class="list-item" onclick="toggleTitle(${title.id})" id="title-${title.id}">
-                        ${title.title_text}
-                    </div>
-                `).join('');
-                
-                document.getElementById('generateArticlesBtn').disabled = false;
-            } else {
-                titlesListDiv.innerHTML = `<div class="error">❌ ${result.error}</div>`;
-            }
+            document.getElementById('generateArticlesBtn').disabled = false;
         } catch (error) {
-            titlesListDiv.innerHTML = `<div class="error">❌ 加载失败: ${error.message}</div>`;
+            showError(titlesListDiv, `加载失败: ${error.message}`);
         }
     }
     
@@ -164,31 +160,28 @@
     // 生成短文
     async function generateArticles() {
         if (selectedTitleIds.length === 0) {
-            alert('请至少选择一个标题');
+            showError(document.getElementById('articlesResult'), '请至少选择一个标题');
             return;
         }
         
         const templateId = document.getElementById('articlePromptSelect').value || null;
         const resultDiv = document.getElementById('articlesResult');
-        resultDiv.innerHTML = '<div class="loading">正在生成短文</div>';
+        const btn = document.getElementById('generateArticlesBtn');
+        
+        // 禁用按钮，防止重复提交
+        btn.disabled = true;
+        showLoading(resultDiv, '正在生成短文...');
         
         const results = [];
         for (const titleId of selectedTitleIds) {
             try {
-                const response = await fetch(`/api/titles/${titleId}/articles`, {
+                const result = await apiCall(`/titles/${titleId}/articles`, {
                     method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({
+                    body: {
                         template_id: templateId ? parseInt(templateId) : null
-                    })
+                    }
                 });
-                const result = await response.json();
-                
-                if (result.success) {
-                    results.push(`✅ 标题ID ${titleId}: 短文已生成（ID: ${result.data.article_id}）`);
-                } else {
-                    results.push(`❌ 标题ID ${titleId}: ${result.error}`);
-                }
+                results.push(`✅ 标题ID ${titleId}: 短文已生成（ID: ${result.data.article_id}）`);
             } catch (error) {
                 results.push(`❌ 标题ID ${titleId}: ${error.message}`);
             }
@@ -197,7 +190,7 @@
         resultDiv.innerHTML = `
             <div class="success">✅ 短文生成完成！</div>
             <div style="margin-top: 15px;">
-                ${results.map(r => `<div style="margin: 5px 0; color: #1a202c;">${r}</div>`).join('')}
+                ${results.map(r => `<div style="margin: 5px 0; color: #1a202c;">${escapeHtml(r)}</div>`).join('')}
             </div>
             <div style="margin-top: 20px;">
                 <a href="/step3" class="next-step-btn">
@@ -205,6 +198,8 @@
                 </a>
             </div>
         `;
+        
+        btn.disabled = false;
     }
     
     // 保存自定义短文
@@ -214,57 +209,57 @@
         const articleText = document.getElementById('customArticleContentInput').value.trim();
         
         if (!titleText) {
-            alert('请输入标题');
+            showError(document.getElementById('customArticleResult'), '请输入标题');
             return;
         }
         
         if (!articleText) {
-            alert('请输入短文内容');
+            showError(document.getElementById('customArticleResult'), '请输入短文内容');
             return;
         }
         
         const resultDiv = document.getElementById('customArticleResult');
-        resultDiv.innerHTML = '<div class="loading">正在保存...</div>';
+        const btn = event.target;
+        
+        // 禁用按钮，防止重复提交
+        btn.disabled = true;
+        showLoading(resultDiv, '正在保存...');
         
         try {
-            const response = await fetch('/api/articles/custom', {
+            const result = await apiCall('/articles/custom', {
                 method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({
+                body: {
                     topic_text: topicText || null,
                     title_text: titleText,
                     article_text: articleText
-                })
+                }
             });
-            const result = await response.json();
             
-            if (result.success) {
-                resultDiv.innerHTML = `
-                    <div class="success">✅ 自定义短文保存成功！</div>
-                    <div style="margin-top: 15px;">
-                        <strong>主题：</strong> ${result.data.topic_text || '（自动创建）'}<br>
-                        <strong>标题ID：</strong> ${result.data.title_id}<br>
-                        <strong>标题：</strong> ${result.data.title_text}<br>
-                        <strong>短文ID：</strong> ${result.data.article_id}
-                    </div>
-                    <div style="margin-top: 20px;">
-                        <a href="/step3" class="next-step-btn">
-                            <button>➡️ 下一步：选择短文生成HTML</button>
-                        </a>
-                    </div>
-                `;
-                // 清空表单
-                document.getElementById('customArticleTopicInput').value = '';
-                document.getElementById('customArticleTitleInput').value = '';
-                document.getElementById('customArticleContentInput').value = '';
-                
-                // 刷新主题列表
-                loadTopics();
-            } else {
-                resultDiv.innerHTML = `<div class="error">❌ ${result.error}</div>`;
-            }
+            resultDiv.innerHTML = `
+                <div class="success">✅ 自定义短文保存成功！</div>
+                <div style="margin-top: 15px;">
+                    <strong>主题：</strong> ${escapeHtml(result.data.topic_text || '（自动创建）')}<br>
+                    <strong>标题ID：</strong> ${result.data.title_id}<br>
+                    <strong>标题：</strong> ${escapeHtml(result.data.title_text)}<br>
+                    <strong>短文ID：</strong> ${result.data.article_id}
+                </div>
+                <div style="margin-top: 20px;">
+                    <a href="/step3" class="next-step-btn">
+                        <button>➡️ 下一步：选择短文生成HTML</button>
+                    </a>
+                </div>
+            `;
+            // 清空表单
+            document.getElementById('customArticleTopicInput').value = '';
+            document.getElementById('customArticleTitleInput').value = '';
+            document.getElementById('customArticleContentInput').value = '';
+            
+            // 刷新主题列表
+            loadTopics();
         } catch (error) {
-            resultDiv.innerHTML = `<div class="error">❌ 保存失败: ${error.message}</div>`;
+            showError(resultDiv, `保存失败: ${error.message}`);
+        } finally {
+            btn.disabled = false;
         }
     }
 </script>

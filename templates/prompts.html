@@ -72,110 +72,140 @@
         const isDefault = document.getElementById('addPromptIsDefault').checked;
         
         if (!category) {
-            alert('请选择分类');
+            showError(document.getElementById('addPromptResult'), '请选择分类');
             return;
         }
         
         if (!name) {
-            alert('请输入模板名称');
+            showError(document.getElementById('addPromptResult'), '请输入模板名称');
             return;
         }
         
         if (!content) {
-            alert('请输入模板内容');
+            showError(document.getElementById('addPromptResult'), '请输入模板内容');
             return;
         }
         
         const resultDiv = document.getElementById('addPromptResult');
-        resultDiv.innerHTML = '<div class="loading">正在保存...</div>';
+        const btn = event.target;
+        
+        // 禁用按钮，防止重复提交
+        btn.disabled = true;
+        showLoading(resultDiv, '正在保存...');
         
         try {
-            const response = await fetch('/api/prompts', {
+            const result = await apiCall('/prompts', {
                 method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({
+                body: {
                     category: category,
                     name: name,
                     description: description || null,
                     content: content,
                     is_default: isDefault
-                })
-            });
-            const result = await response.json();
-            
-            if (result.success) {
-                resultDiv.innerHTML = `
-                    <div class="success">✅ 提示词保存成功！</div>
-                    <div style="margin-top: 10px;">
-                        <strong>模板ID:</strong> ${result.data.id}<br>
-                        <strong>分类:</strong> ${result.data.category}<br>
-                        <strong>名称:</strong> ${result.data.name}
-                    </div>
-                `;
-                // 清空表单
-                document.getElementById('addPromptCategory').value = '';
-                document.getElementById('addPromptName').value = '';
-                document.getElementById('addPromptDescription').value = '';
-                document.getElementById('addPromptContent').value = '';
-                document.getElementById('addPromptIsDefault').checked = false;
-                
-                // 如果当前查看的类型匹配，刷新列表
-                const currentType = document.getElementById('promptTypeSelect').value;
-                if (currentType && (
-                    (currentType === 'titles' && category === 'title') ||
-                    (currentType === 'articles' && category === 'article') ||
-                    (currentType === 'html' && category === 'html')
-                )) {
-                    loadPrompts();
                 }
-            } else {
-                resultDiv.innerHTML = `<div class="error">❌ ${result.error}</div>`;
+            });
+            
+            resultDiv.innerHTML = `
+                <div class="success">✅ 提示词保存成功！</div>
+                <div style="margin-top: 10px;">
+                    <strong>模板ID:</strong> ${result.data.id}<br>
+                    <strong>分类:</strong> ${escapeHtml(result.data.category)}<br>
+                    <strong>名称:</strong> ${escapeHtml(result.data.name)}
+                </div>
+            `;
+            // 清空表单
+            document.getElementById('addPromptCategory').value = '';
+            document.getElementById('addPromptName').value = '';
+            document.getElementById('addPromptDescription').value = '';
+            document.getElementById('addPromptContent').value = '';
+            document.getElementById('addPromptIsDefault').checked = false;
+            
+            // 如果当前查看的类型匹配，刷新列表
+            const currentType = document.getElementById('promptTypeSelect').value;
+            if (currentType && (
+                (currentType === 'titles' && category === 'title') ||
+                (currentType === 'articles' && category === 'article') ||
+                (currentType === 'html' && category === 'html')
+            )) {
+                loadPrompts();
             }
         } catch (error) {
-            resultDiv.innerHTML = `<div class="error">❌ 保存失败: ${error.message}</div>`;
+            showError(resultDiv, `保存失败: ${error.message}`);
+        } finally {
+            btn.disabled = false;
         }
     }
     
     // 加载提示词列表
     async function loadPrompts() {
         const type = document.getElementById('promptTypeSelect').value;
+        const promptsListDiv = document.getElementById('promptsList');
+        
         if (!type) {
-            document.getElementById('promptsList').innerHTML = '';
+            promptsListDiv.innerHTML = '';
             return;
         }
         
-        const promptsListDiv = document.getElementById('promptsList');
-        promptsListDiv.innerHTML = '<div class="loading">加载中</div>';
+        showLoading(promptsListDiv, '加载中...');
         
         try {
-            let url = '';
+            let category = '';
             if (type === 'titles') {
-                url = '/api/prompts/title';
+                category = 'title';
             } else if (type === 'articles') {
-                url = '/api/prompts/article';
+                category = 'article';
             } else if (type === 'html') {
-                url = '/api/prompts/html';
+                category = 'html';
             }
             
-            const response = await fetch(url);
-            const result = await response.json();
+            const result = await apiCall(`/prompts/${category}`);
             
-            if (result.success) {
-                if (result.data.length === 0) {
-                    promptsListDiv.innerHTML = '<div class="info">暂无提示词模板</div>';
-                } else {
-                    promptsListDiv.innerHTML = result.data.map(prompt => `
-                        <div class="list-item" onclick="showPromptDetail('${type}', ${prompt.id})" style="cursor: pointer;">
-                            <strong>${prompt.name}</strong>
-                            <small style="display: block; margin-top: 5px; color: #718096;">分类: ${prompt.category}</small>
-                        </div>
-                    `).join('');
-                }
+            if (result.data.length === 0) {
+                promptsListDiv.innerHTML = '<div class="info">暂无提示词模板</div>';
             } else {
-                promptsListDiv.innerHTML = `<div class="error">❌ ${result.error}</div>`;
+                // 清空容器
+                promptsListDiv.innerHTML = '';
+                
+                // 为每个 prompt 创建 DOM 元素并直接添加事件监听器
+                result.data.forEach(prompt => {
+                    const promptNameEscaped = escapeHtml(prompt.name);
+                    const promptDescriptionEscaped = prompt.description ? escapeHtml(prompt.description) : '无描述';
+                    
+                    // 创建容器 div
+                    const itemDiv = document.createElement('div');
+                    itemDiv.className = 'list-item';
+                    itemDiv.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 15px; margin-bottom: 10px; background: white; border-radius: 8px; border: 1px solid #e2e8f0;';
+                    
+                    // 创建左侧内容 div
+                    const contentDiv = document.createElement('div');
+                    contentDiv.style.cssText = 'flex: 1; cursor: pointer;';
+                    contentDiv.onclick = () => showPromptDetail(type, prompt.id);
+                    contentDiv.innerHTML = `
+                        <strong>${promptNameEscaped}${prompt.is_default ? ' <span style="color: #48bb78; font-size: 12px;">[默认]</span>' : ''}</strong>
+                        <small style="display: block; margin-top: 5px; color: #718096;">${promptDescriptionEscaped}</small>
+                    `;
+                    
+                    // 创建删除按钮
+                    const deleteBtn = document.createElement('button');
+                    deleteBtn.className = 'delete-prompt-btn';
+                    deleteBtn.style.cssText = 'background: #f56565; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; margin-left: 15px; font-size: 14px;';
+                    deleteBtn.title = '删除提示词';
+                    deleteBtn.textContent = '🗑️ 删除';
+                    
+                    // 使用闭包直接捕获 prompt 对象
+                    deleteBtn.addEventListener('click', function(e) {
+                        e.stopPropagation(); // 阻止事件冒泡
+                        deletePrompt(prompt.id, prompt.name, e);
+                    });
+                    
+                    // 组装元素
+                    itemDiv.appendChild(contentDiv);
+                    itemDiv.appendChild(deleteBtn);
+                    promptsListDiv.appendChild(itemDiv);
+                });
             }
         } catch (error) {
-            promptsListDiv.innerHTML = `<div class="error">❌ 加载失败: ${error.message}</div>`;
+            showError(promptsListDiv, `加载失败: ${error.message}`);
         }
     }
     
@@ -183,41 +213,78 @@
     async function showPromptDetail(type, promptId) {
         const detailDiv = document.getElementById('promptDetail');
         const contentDiv = document.getElementById('promptContent');
-        contentDiv.innerHTML = '<div class="loading">加载中</div>';
+        showLoading(contentDiv, '加载中...');
         detailDiv.style.display = 'block';
         
         try {
-            const response = await fetch(`/api/prompts/${promptId}`);
-            const result = await response.json();
+            const result = await apiCall(`/prompts/${promptId}`);
             
-            if (result.success) {
-                let title = '';
-                if (type === 'titles') {
-                    title = `标题: ${result.data.name}`;
-                } else if (type === 'article') {
-                    title = `短文: ${result.data.name}`;
-                } else if (type === 'html') {
-                    title = `HTML: ${result.data.name}`;
-                }
-                
-                contentDiv.innerHTML = `
-                    <h3>${title}</h3>
-                    <div style="margin-top: 15px; padding: 15px; background: white; border-radius: 8px; border: 1px solid #e2e8f0;">
-                        <pre style="white-space: pre-wrap; word-wrap: break-word; color: #1a202c; font-family: 'Courier New', monospace; font-size: 13px; line-height: 1.6;">${escapeHtml(result.data.content)}</pre>
-                    </div>
-                `;
-                detailDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-            } else {
-                contentDiv.innerHTML = `<div class="error">❌ ${result.error}</div>`;
+            let title = '';
+            if (type === 'titles') {
+                title = `标题: ${escapeHtml(result.data.name)}`;
+            } else if (type === 'articles') {
+                title = `短文: ${escapeHtml(result.data.name)}`;
+            } else if (type === 'html') {
+                title = `HTML: ${escapeHtml(result.data.name)}`;
             }
+            
+            contentDiv.innerHTML = `
+                <h3>${title}</h3>
+                <div style="margin-top: 15px; padding: 15px; background: white; border-radius: 8px; border: 1px solid #e2e8f0;">
+                    <pre style="white-space: pre-wrap; word-wrap: break-word; color: #1a202c; font-family: 'Courier New', monospace; font-size: 13px; line-height: 1.6;">${escapeHtml(result.data.content)}</pre>
+                </div>
+            `;
+            detailDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         } catch (error) {
-            contentDiv.innerHTML = `<div class="error">❌ 加载失败: ${error.message}</div>`;
+            showError(contentDiv, `加载失败: ${error.message}`);
         }
     }
     
     // 关闭提示词详情
     function closePromptDetail() {
         document.getElementById('promptDetail').style.display = 'none';
+    }
+    
+    // 删除提示词
+    async function deletePrompt(promptId, promptName, event) {
+        // 阻止事件冒泡，避免触发列表项的点击事件
+        if (event) {
+            event.stopPropagation();
+        }
+        
+        // 确认删除（promptName 已经是字符串，不需要再次转义）
+        if (!confirm(`确定要删除提示词 "${promptName}" 吗？\n\n注意：删除后无法恢复。如果该模板正在被使用，相关记录将保留，但不再关联此模板。`)) {
+            return;
+        }
+        
+        const promptsListDiv = document.getElementById('promptsList');
+        const originalContent = promptsListDiv.innerHTML;
+        
+        // 显示加载状态
+        showLoading(promptsListDiv, '正在删除...');
+        
+        try {
+            const result = await apiCall(`/prompts/${promptId}`, {
+                method: 'DELETE'
+            });
+            
+            if (result.success) {
+                // 删除成功，刷新列表
+                showSuccess(promptsListDiv, `提示词 "${escapeHtml(promptName)}" 已成功删除`);
+                // 延迟刷新列表，让用户看到成功消息
+                setTimeout(() => {
+                    loadPrompts();
+                }, 1500);
+            } else {
+                showError(promptsListDiv, `删除失败: ${result.error || '未知错误'}`);
+            }
+        } catch (error) {
+            showError(promptsListDiv, `删除失败: ${error.message}`);
+            // 恢复原内容
+            setTimeout(() => {
+                promptsListDiv.innerHTML = originalContent;
+            }, 2000);
+        }
     }
 </script>
 {% endblock %}

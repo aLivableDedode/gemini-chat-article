@@ -159,3 +159,39 @@ def get_default_prompt_template(category: str) -> Optional[Dict]:
     finally:
         db.close()
 
+
+def delete_prompt_template(template_id: int) -> bool:
+    """删除提示词模板"""
+    db = get_db_session()
+    try:
+        template = db.query(PromptTemplate).filter(PromptTemplate.id == template_id).first()
+        if not template:
+            logger.warning(f"尝试删除不存在的提示词模板: template_id={template_id}")
+            return False
+        
+        category = template.category
+        is_default = template.is_default
+        template_name = template.name
+        
+        # 删除模板
+        db.delete(template)
+        
+        # 如果删除的是默认模板，且同分类下还有其他模板，将第一个设为默认
+        if is_default:
+            remaining_template = db.query(PromptTemplate).filter(
+                PromptTemplate.category == category
+            ).first()
+            if remaining_template:
+                remaining_template.is_default = True
+                logger.info(f"删除默认模板后，将 {remaining_template.name} 设为默认模板")
+        
+        db.commit()
+        logger.info(f"成功删除提示词模板: {category}/{template_name} (ID: {template_id})")
+        return True
+    except Exception as e:
+        db.rollback()
+        logger.error(f"删除提示词模板失败: template_id={template_id}, error={e}", exc_info=True)
+        raise e
+    finally:
+        db.close()
+

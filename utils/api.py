@@ -24,10 +24,35 @@ def get_gemini_response(prompt: str, temperature: float = 0.7, max_tokens: int =
     if not API_KEY:
         logger.error("GEMINI_API_KEY 未设置")
         raise ValueError("错误：环境变量 GEMINI_API_KEY 未设置！")
+    
+    # 诊断信息：检查API_KEY格式
+    api_key_preview = f"{API_KEY[:10]}...{API_KEY[-5:]}" if len(API_KEY) > 15 else "***"
+    logger.info(f"API_KEY 诊断信息: 长度={len(API_KEY)}, 预览={api_key_preview}")
+    
+    # 检查API_KEY是否包含换行符或空格
+    if '\n' in API_KEY or '\r' in API_KEY:
+        logger.warning("API_KEY 包含换行符，正在清理...")
+        API_KEY = API_KEY.strip().replace('\n', '').replace('\r', '')
+        logger.info(f"清理后的API_KEY长度: {len(API_KEY)}")
+    
+    # 检查API_KEY是否包含前后空格
+    if API_KEY != API_KEY.strip():
+        logger.warning("API_KEY 包含前后空格，正在清理...")
+        API_KEY = API_KEY.strip()
+        logger.info(f"清理后的API_KEY长度: {len(API_KEY)}")
 
-    url = f"{BASE_URL}/v1beta/models/{MODEL_NAME}:generateContent?key={API_KEY}"
+    # 构造URL（不包含key）
+    url = f"{BASE_URL}/v1beta/models/{MODEL_NAME}:generateContent"
 
-    headers = {"Content-Type": "application/json"}
+    # 设置请求头
+    headers = {
+        "Content-Type": "application/json"
+    }
+    
+    # 检查API_KEY是否是占位符
+    if "your_gemin" in API_KEY.lower() or "your_api_key" in API_KEY.lower() or "placeholder" in API_KEY.lower():
+        logger.error(f"API_KEY 看起来是占位符文本，请检查 .env 文件中的 GEMINI_API_KEY 配置")
+        raise ValueError("API_KEY 配置错误：检测到占位符文本，请设置真实的 API key")
 
     payload = {
         "contents": [{"parts": [{"text": prompt}]}],
@@ -39,10 +64,44 @@ def get_gemini_response(prompt: str, temperature: float = 0.7, max_tokens: int =
 
     try:
         logger.debug(f"发送API请求到: {BASE_URL}, 模型: {MODEL_NAME}")
-        response = requests.post(url, headers=headers, json=payload, timeout=60)
+        logger.debug(f"请求URL: {url}")
+        logger.debug(f"请求方式: POST")
+        
+        # 尝试方式1: 使用 X-Goog-Api-Key header（Gemini API 标准方式）
+        headers_with_key = {**headers, "X-Goog-Api-Key": API_KEY}
+        logger.debug(f"尝试方式1: 使用 X-Goog-Api-Key header")
+        
+        response = requests.post(
+            url, 
+            headers=headers_with_key, 
+            json=payload, 
+            timeout=60
+        )
+        
+        # 如果401错误，尝试方式2: 使用URL参数（兼容旧方式）
+        if response.status_code == 401:
+            logger.warning("方式1失败（401），尝试方式2: 使用URL参数传递key")
+            response = requests.post(
+                url, 
+                headers=headers, 
+                json=payload, 
+                params={"key": API_KEY},
+                timeout=60
+            )
+        
+        # 记录实际请求的URL（隐藏key部分）
+        actual_url = response.url if hasattr(response, 'url') else url
+        if 'key=' in actual_url:
+            # 隐藏key部分
+            safe_url = actual_url.split('key=')[0] + 'key=***'
+            logger.debug(f"实际请求URL: {safe_url}")
+        else:
+            logger.debug(f"实际请求URL: {actual_url}")
 
         if response.status_code != 200:
-            logger.error(f"API请求失败: status_code={response.status_code}, response={response.text[:200]}")
+            logger.error(f"API请求失败: status_code={response.status_code}")
+            logger.error(f"响应内容: {response.text[:500]}")
+            logger.error(f"请求URL (隐藏key): {url}?key=***")
             raise Exception(f"API 请求失败 [Code: {response.status_code}]: {response.text}")
 
         result = response.json()

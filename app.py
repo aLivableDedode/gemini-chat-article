@@ -7,7 +7,7 @@ from models import Topic, Title, Article, HTMLOutput, PromptTemplate
 from services.title_service import generate_titles, save_titles_to_db
 from services.article_service import generate_article, save_article_to_db
 from services.html_service import generate_html, save_html_to_db
-from services.prompt_service import init_prompt_templates, get_prompt_templates
+from services.prompt_service import init_prompt_templates, get_prompt_templates, delete_prompt_template
 from services.coze_service import call_coze_api
 from utils.logger import logger
 
@@ -81,14 +81,16 @@ def get_topics():
         for t in topics:
             # 使用查询计数，避免关系加载问题
             titles_count = db.query(Title).filter(Title.topic_id == t.id).count()
-            result.append({
-                'id': t.id,
-                'topic_text': t.topic_text,
-                'status': t.status,
-                'created_at': t.created_at.isoformat(),
-                'titles_count': titles_count
-            })
-        logger.info(f"成功返回 {len(result)} 个主题")
+            # 只返回有标题的主题（titles_count > 0）
+            if titles_count > 0:
+                result.append({
+                    'id': t.id,
+                    'topic_text': t.topic_text,
+                    'status': t.status,
+                    'created_at': t.created_at.isoformat(),
+                    'titles_count': titles_count
+                })
+        logger.info(f"过滤后返回 {len(result)} 个有标题的主题（已过滤 {len(topics) - len(result)} 个无标题主题）")
         return jsonify({
             'success': True,
             'data': result
@@ -208,6 +210,28 @@ def get_prompt_detail(template_id):
         return jsonify({'success': False, 'error': str(e)}), 500
     finally:
         db.close()
+
+
+@app.route('/api/prompts/<int:template_id>', methods=['DELETE'])
+def delete_prompt(template_id):
+    """删除提示词模板"""
+    logger.info(f"收到删除提示词模板请求: template_id={template_id}")
+    
+    try:
+        # 删除模板（函数内部会检查模板是否存在）
+        success = delete_prompt_template(template_id)
+        if success:
+            logger.info(f"提示词模板删除成功: template_id={template_id}")
+            return jsonify({
+                'success': True,
+                'data': {'id': template_id}
+            })
+        else:
+            # 模板不存在
+            return jsonify({'success': False, 'error': '模板不存在'}), 404
+    except Exception as e:
+        logger.error(f"删除提示词模板失败: template_id={template_id}, error={e}", exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @app.route('/api/topics', methods=['POST'])

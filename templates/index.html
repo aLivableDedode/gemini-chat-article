@@ -658,57 +658,33 @@
         let selectedTitleIds = [];
         let selectedArticleId = null;
         
-        // 加载提示词模板列表
-        async function loadPromptTemplates(category, selectId) {
-            try {
-                const response = await fetch(`/api/prompts/${category}`);
-                const result = await response.json();
-                
-                if (result.success) {
-                    const select = document.getElementById(selectId);
-                    select.innerHTML = '<option value="">使用默认模板</option>';
-                    
-                    result.data.forEach(template => {
-                        const option = document.createElement('option');
-                        option.value = template.id;
-                        option.textContent = `${template.name}${template.is_default ? ' (默认)' : ''}`;
-                        if (template.is_default) {
-                            option.selected = true;
-                        }
-                        select.appendChild(option);
-                    });
-                }
-            } catch (error) {
-                console.error(`加载提示词模板失败 (${category}):`, error);
-            }
-        }
+        // 加载提示词模板列表（使用base.html中的统一函数）
+        // 注意：此函数已在base.html中重构，这里保留以兼容现有调用
         
         // 加载主题列表
         async function loadTopics() {
+            const select = document.getElementById('topicSelect');
+            if (!select) return;
+            
             try {
-                const response = await fetch('/api/topics');
-                const result = await response.json();
+                const result = await apiCall('/topics');
+                select.innerHTML = '<option value="">-- 选择主题 --</option>';
                 
-                if (result.success) {
-                    const select = document.getElementById('topicSelect');
-                    select.innerHTML = '<option value="">-- 选择主题 --</option>';
+                if (result.data && result.data.length > 0) {
+                    // 只显示有标题的主题（titles_count > 0）
+                    const topicsWithTitles = result.data.filter(topic => (topic.titles_count || 0) > 0);
+                    topicsWithTitles.forEach(topic => {
+                        const option = document.createElement('option');
+                        option.value = topic.id;
+                        option.textContent = `${topic.topic_text} (${topic.titles_count}个标题)`;
+                        select.appendChild(option);
+                    });
                     
-                    if (result.data && result.data.length > 0) {
-                        result.data.forEach(topic => {
-                            const option = document.createElement('option');
-                            option.value = topic.id;
-                            option.textContent = `${topic.topic_text} (${topic.titles_count || 0}个标题)`;
-                            select.appendChild(option);
-                        });
-                        
-                        // 如果有主题，自动选择第一个并加载标题
-                        if (result.data.length > 0) {
-                            select.value = result.data[0].id;
-                            loadTitles();
-                        }
+                    // 如果有主题，自动选择第一个并加载标题
+                    if (topicsWithTitles.length > 0) {
+                        select.value = topicsWithTitles[0].id;
+                        loadTitles();
                     }
-                } else {
-                    console.error('加载主题失败:', result.error);
                 }
             } catch (error) {
                 console.error('加载主题失败:', error);
@@ -719,72 +695,68 @@
         async function createTopic() {
             const topicText = document.getElementById('topicInput').value.trim();
             if (!topicText) {
-                alert('请输入主题');
+                showError(document.getElementById('titlesResult'), '请输入主题');
                 return;
             }
             
             const templateId = document.getElementById('titlePromptSelect').value || null;
-            
             const resultDiv = document.getElementById('titlesResult');
-            resultDiv.innerHTML = '<div class="loading">正在生成标题</div>';
+            const btn = event.target;
+            
+            // 禁用按钮，防止重复提交
+            btn.disabled = true;
+            showLoading(resultDiv, '正在生成标题...');
             
             try {
-                const response = await fetch('/api/topics', {
+                const result = await apiCall('/topics', {
                     method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({
+                    body: {
                         topic_text: topicText,
                         template_id: templateId ? parseInt(templateId) : null
-                    })
+                    }
                 });
                 
-                const result = await response.json();
-                
-                if (result.success) {
-                    resultDiv.innerHTML = `
-                        <div class="success">
-                            ✅ 成功生成 ${result.data.titles.length} 个标题：
-                            <ul>
-                                ${result.data.titles.map((t, i) => `<li>${t}</li>`).join('')}
-                            </ul>
-                        </div>
-                    `;
-                    document.getElementById('topicInput').value = '';
-                    loadTopics();
-                } else {
-                    resultDiv.innerHTML = `<div class="error">❌ ${result.error}</div>`;
-                }
+                resultDiv.innerHTML = `
+                    <div class="success">
+                        ✅ 成功生成 ${result.data.titles.length} 个标题：
+                        <ul>
+                            ${result.data.titles.map((t, i) => `<li>${escapeHtml(typeof t === 'string' ? t : (t.title_text || t))}</li>`).join('')}
+                        </ul>
+                    </div>
+                `;
+                document.getElementById('topicInput').value = '';
+                loadTopics();
             } catch (error) {
-                resultDiv.innerHTML = `<div class="error">❌ 生成失败: ${error.message}</div>`;
+                showError(resultDiv, `生成失败: ${error.message}`);
+            } finally {
+                btn.disabled = false;
             }
         }
         
         // 加载标题列表
         async function loadTitles() {
             const topicId = document.getElementById('topicSelect').value;
-            if (!topicId) return;
-            
             const titlesListDiv = document.getElementById('titlesList');
-            titlesListDiv.innerHTML = '<div class="loading">加载中</div>';
+            
+            if (!topicId) {
+                titlesListDiv.innerHTML = '';
+                return;
+            }
+            
+            showLoading(titlesListDiv, '加载中...');
             
             try {
-                const response = await fetch(`/api/topics/${topicId}/titles`);
-                const result = await response.json();
+                const result = await apiCall(`/topics/${topicId}/titles`);
+                selectedTitleIds = [];
+                titlesListDiv.innerHTML = result.data.titles.map(title => `
+                    <div class="list-item" onclick="toggleTitle(${title.id})" id="title-${title.id}">
+                        ${escapeHtml(title.title_text)}
+                    </div>
+                `).join('');
                 
-                if (result.success) {
-                    selectedTitleIds = [];
-                    titlesListDiv.innerHTML = result.data.titles.map(title => `
-                        <div class="list-item" onclick="toggleTitle(${title.id})" id="title-${title.id}">
-                            ${title.title_text}
-                        </div>
-                    `).join('');
-                    
-                    document.getElementById('generateArticlesBtn').disabled = false;
-                } else {
-                    titlesListDiv.innerHTML = `<div class="error">❌ ${result.error}</div>`;
-                }
+                document.getElementById('generateArticlesBtn').disabled = false;
             } catch (error) {
-                titlesListDiv.innerHTML = `<div class="error">❌ 加载失败: ${error.message}</div>`;
+                showError(titlesListDiv, `加载失败: ${error.message}`);
             }
         }
         
@@ -805,68 +777,58 @@
         // 生成短文
         async function generateArticles() {
             if (selectedTitleIds.length === 0) {
-                alert('请至少选择一个标题');
+                showError(document.getElementById('articlesResult'), '请至少选择一个标题');
                 return;
             }
             
             const templateId = document.getElementById('articlePromptSelect').value || null;
-            
             const resultDiv = document.getElementById('articlesResult');
-            resultDiv.innerHTML = '<div class="loading">正在生成短文</div>';
+            const btn = document.getElementById('generateArticlesBtn');
+            
+            // 禁用按钮，防止重复提交
+            btn.disabled = true;
+            showLoading(resultDiv, '正在生成短文...');
             
             const results = [];
             for (const titleId of selectedTitleIds) {
                 try {
-                    const response = await fetch(`/api/titles/${titleId}/articles`, {
+                    const result = await apiCall(`/titles/${titleId}/articles`, {
                         method: 'POST',
-                        headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({
+                        body: {
                             template_id: templateId ? parseInt(templateId) : null
-                        })
+                        }
                     });
-                    const result = await response.json();
-                    
-                    if (result.success) {
-                        results.push(`✅ 标题ID ${titleId}: 短文已生成（ID: ${result.data.article_id}）`);
-                    } else {
-                        results.push(`❌ 标题ID ${titleId}: ${result.error}`);
-                    }
+                    results.push(`✅ 标题ID ${titleId}: 短文已生成（ID: ${result.data.article_id}）`);
                 } catch (error) {
                     results.push(`❌ 标题ID ${titleId}: ${error.message}`);
                 }
             }
             
-            resultDiv.innerHTML = `<div class="success">${results.join('<br>')}</div>`;
+            resultDiv.innerHTML = `<div class="success">${results.map(r => escapeHtml(r)).join('<br>')}</div>`;
             loadArticles();
+            btn.disabled = false;
         }
         
         // 加载短文列表
         async function loadArticles() {
+            const articlesListDiv = document.getElementById('articlesList');
+            if (!articlesListDiv) return;
+            
             try {
-                const response = await fetch('/api/articles');
-                const result = await response.json();
+                const result = await apiCall('/articles');
                 
-                if (result.success) {
-                    const articlesListDiv = document.getElementById('articlesList');
-                    if (result.data && result.data.length > 0) {
-                        articlesListDiv.innerHTML = result.data.map(article => `
-                            <div class="list-item" onclick="selectArticle(${article.id})" id="article-${article.id}">
-                                <strong>${article.title_text}</strong>
-                                <small>${article.article_text ? article.article_text.substring(0, 100) + '...' : '暂无内容'}</small>
-                            </div>
-                        `).join('');
-                    } else {
-                        articlesListDiv.innerHTML = '<div class="loading">暂无短文，请先生成</div>';
-                    }
+                if (result.data && result.data.length > 0) {
+                    articlesListDiv.innerHTML = result.data.map(article => `
+                        <div class="list-item" onclick="selectArticle(${article.id})" id="article-${article.id}">
+                            <strong>${escapeHtml(article.title_text)}</strong>
+                            <small>${escapeHtml(article.article_text ? article.article_text.substring(0, 100) + '...' : '暂无内容')}</small>
+                        </div>
+                    `).join('');
                 } else {
-                    console.error('加载短文失败:', result.error);
-                    const articlesListDiv = document.getElementById('articlesList');
-                    articlesListDiv.innerHTML = '<div class="error">❌ 加载失败: ' + (result.error || '未知错误') + '</div>';
+                    articlesListDiv.innerHTML = '<div class="info">暂无短文，请先生成</div>';
                 }
             } catch (error) {
-                console.error('加载短文失败:', error);
-                const articlesListDiv = document.getElementById('articlesList');
-                articlesListDiv.innerHTML = '<div class="error">❌ 加载失败: ' + error.message + '</div>';
+                showError(articlesListDiv, `加载失败: ${error.message}`);
             }
         }
         
@@ -886,74 +848,68 @@
         // 生成HTML
         async function generateHTML() {
             if (!selectedArticleId) {
-                alert('请选择一个短文');
+                showError(document.getElementById('htmlResult'), '请选择一个短文');
                 return;
             }
             
             const templateId = document.getElementById('htmlPromptSelect').value || null;
-            
             const resultDiv = document.getElementById('htmlResult');
-            resultDiv.innerHTML = '<div class="loading">正在生成HTML</div>';
+            const btn = document.getElementById('generateHTMLBtn');
+            
+            // 禁用按钮，防止重复提交
+            btn.disabled = true;
+            showLoading(resultDiv, '正在生成HTML...');
             
             try {
-                const response = await fetch(`/api/articles/${selectedArticleId}/html`, {
+                const result = await apiCall(`/articles/${selectedArticleId}/html`, {
                     method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({
+                    body: {
                         template_id: templateId ? parseInt(templateId) : null
-                    })
+                    }
                 });
-                const result = await response.json();
                 
-                if (result.success) {
-                    resultDiv.innerHTML = `
-                        <div class="success">✅ HTML已生成（ID: ${result.data.html_id}）</div>
-                        <div class="html-preview" style="color: #1a202c;">${result.data.html_content}</div>
-                    `;
-                    loadHTMLOutputs();
-                } else {
-                    resultDiv.innerHTML = `<div class="error">❌ ${result.error}</div>`;
-                }
+                resultDiv.innerHTML = `
+                    <div class="success">✅ HTML已生成（ID: ${result.data.html_id}）</div>
+                    <div class="html-preview" style="color: #1a202c;">${result.data.html_content}</div>
+                `;
+                loadHTMLOutputs();
             } catch (error) {
-                resultDiv.innerHTML = `<div class="error">❌ 生成失败: ${error.message}</div>`;
+                showError(resultDiv, `生成失败: ${error.message}`);
+            } finally {
+                btn.disabled = false;
             }
         }
         
         // 加载HTML输出列表（仅显示列表，不加载内容）
         async function loadHTMLOutputs() {
             const htmlListDiv = document.getElementById('htmlOutputsList');
-            htmlListDiv.innerHTML = '<div class="loading">加载中</div>';
+            showLoading(htmlListDiv, '加载中...');
             
             try {
-                const response = await fetch('/api/html');
-                const result = await response.json();
+                const result = await apiCall('/html');
                 
-                if (result.success) {
-                    if (result.data.length === 0) {
-                        htmlListDiv.innerHTML = '<div class="info">暂无HTML输出</div>';
-                    } else {
-                        htmlListDiv.innerHTML = result.data.map(html => `
-                            <div class="html-output-item" style="margin-bottom: 15px; padding: 20px; background: #ffffff; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 2px 8px rgba(0,0,0,0.05); cursor: pointer; transition: all 0.3s ease;" onclick="toggleHTMLOutput(${html.id}, this)">
-                                <div style="color: #2d3748; display: flex; justify-content: space-between; align-items: center;">
-                                    <div>
-                                        <strong style="color: #1a202c;">ID:</strong> <span style="color: #1a202c;">${html.id}</span> | 
-                                        <strong style="color: #1a202c;">短文:</strong> <span style="color: #1a202c;">${html.article_title}</span>
-                                    </div>
-                                    <div style="color: #667eea; font-size: 14px;">
-                                        <span class="expand-icon-${html.id}">▼</span> <span class="expand-text-${html.id}">点击展开</span>
-                                    </div>
+                if (result.data.length === 0) {
+                    htmlListDiv.innerHTML = '<div class="info">暂无HTML输出</div>';
+                } else {
+                    htmlListDiv.innerHTML = result.data.map(html => `
+                        <div class="html-output-item" style="margin-bottom: 15px; padding: 20px; background: #ffffff; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 2px 8px rgba(0,0,0,0.05); cursor: pointer; transition: all 0.3s ease;" onclick="toggleHTMLOutput(${html.id}, this)">
+                            <div style="color: #2d3748; display: flex; justify-content: space-between; align-items: center;">
+                                <div>
+                                    <strong style="color: #1a202c;">ID:</strong> <span style="color: #1a202c;">${html.id}</span> | 
+                                    <strong style="color: #1a202c;">短文:</strong> <span style="color: #1a202c;">${escapeHtml(html.article_title)}</span>
                                 </div>
-                                <div id="html-content-${html.id}" style="display: none; margin-top: 15px; padding-top: 15px; border-top: 1px solid #e2e8f0;">
-                                    <div class="loading-small">加载中...</div>
+                                <div style="color: #667eea; font-size: 14px;">
+                                    <span class="expand-icon-${html.id}">▼</span> <span class="expand-text-${html.id}">点击展开</span>
                                 </div>
                             </div>
-                        `).join('');
-                    }
-                } else {
-                    htmlListDiv.innerHTML = `<div class="error">❌ ${result.error}</div>`;
+                            <div id="html-content-${html.id}" style="display: none; margin-top: 15px; padding-top: 15px; border-top: 1px solid #e2e8f0;">
+                                <div class="loading-small">加载中...</div>
+                            </div>
+                        </div>
+                    `).join('');
                 }
             } catch (error) {
-                htmlListDiv.innerHTML = `<div class="error">❌ 加载失败: ${error.message}</div>`;
+                showError(htmlListDiv, `加载失败: ${error.message}`);
             }
         }
         
@@ -974,20 +930,13 @@
             // 如果内容还没有加载，先加载
             if (contentDiv.innerHTML.includes('加载中')) {
                 try {
-                    const response = await fetch(`/api/html/${htmlId}`);
-                    const result = await response.json();
-                    
-                    if (result.success) {
-                        contentDiv.innerHTML = `<div class="html-preview" style="color: #1a202c;">${result.data.html_content}</div>`;
-                        contentDiv.style.display = 'block';
-                        iconSpan.textContent = '▲';
-                        textSpan.textContent = '点击收起';
-                    } else {
-                        contentDiv.innerHTML = `<div class="error">❌ ${result.error}</div>`;
-                        contentDiv.style.display = 'block';
-                    }
+                    const result = await apiCall(`/html/${htmlId}`);
+                    contentDiv.innerHTML = `<div class="html-preview" style="color: #1a202c;">${result.data.html_content}</div>`;
+                    contentDiv.style.display = 'block';
+                    iconSpan.textContent = '▲';
+                    textSpan.textContent = '点击收起';
                 } catch (error) {
-                    contentDiv.innerHTML = `<div class="error">❌ 加载失败: ${error.message}</div>`;
+                    showError(contentDiv, `加载失败: ${error.message}`);
                     contentDiv.style.display = 'block';
                 }
             } else {
@@ -1001,31 +950,24 @@
         // 加载提示词列表
         async function loadPrompts() {
             const type = document.getElementById('promptTypeSelect').value;
+            const promptsListDiv = document.getElementById('promptsList');
+            
             if (!type) {
-                document.getElementById('promptsList').innerHTML = '';
+                promptsListDiv.innerHTML = '';
                 return;
             }
             
-            const promptsListDiv = document.getElementById('promptsList');
-            promptsListDiv.innerHTML = '<div class="loading">加载中</div>';
+            showLoading(promptsListDiv, '加载中...');
             
             try {
-                let url = '';
                 if (type === 'titles') {
                     // 获取所有主题，然后获取每个主题的标题
-                    const topicsRes = await fetch('/api/topics');
-                    const topicsResult = await topicsRes.json();
-                    
-                    if (!topicsResult.success) {
-                        promptsListDiv.innerHTML = `<div class="error">❌ ${topicsResult.error}</div>`;
-                        return;
-                    }
+                    const topicsResult = await apiCall('/topics');
                     
                     let allPrompts = [];
                     for (const topic of topicsResult.data) {
-                        const titlesRes = await fetch(`/api/topics/${topic.id}/titles`);
-                        const titlesResult = await titlesRes.json();
-                        if (titlesResult.success) {
+                        try {
+                            const titlesResult = await apiCall(`/topics/${topic.id}/titles`);
                             titlesResult.data.titles.forEach(title => {
                                 allPrompts.push({
                                     id: title.id,
@@ -1034,47 +976,36 @@
                                     type: 'title'
                                 });
                             });
+                        } catch (error) {
+                            console.error(`加载主题 ${topic.id} 的标题失败:`, error);
                         }
                     }
                     
                     promptsListDiv.innerHTML = allPrompts.map(p => `
                         <div class="prompt-item" onclick="showPromptDetail(${p.id}, 'title')">
-                            <div class="prompt-item-title">标题: ${p.title}</div>
-                            <div class="prompt-item-preview">${p.prompt.substring(0, 100)}...</div>
+                            <div class="prompt-item-title">标题: ${escapeHtml(p.title)}</div>
+                            <div class="prompt-item-preview">${escapeHtml(p.prompt.substring(0, 100))}...</div>
                         </div>
                     `).join('');
-                    return;
                 } else if (type === 'articles') {
-                    const response = await fetch('/api/articles');
-                    const result = await response.json();
-                    
-                    if (result.success) {
-                        promptsListDiv.innerHTML = result.data.map(article => `
-                            <div class="prompt-item" onclick="showPromptDetail(${article.id}, 'article')">
-                                <div class="prompt-item-title">短文: ${article.title_text}</div>
-                                <div class="prompt-item-preview">${article.prompt_text.substring(0, 100)}...</div>
-                            </div>
-                        `).join('');
-                    } else {
-                        promptsListDiv.innerHTML = `<div class="error">❌ ${result.error}</div>`;
-                    }
+                    const result = await apiCall('/articles');
+                    promptsListDiv.innerHTML = result.data.map(article => `
+                        <div class="prompt-item" onclick="showPromptDetail(${article.id}, 'article')">
+                            <div class="prompt-item-title">短文: ${escapeHtml(article.title_text)}</div>
+                            <div class="prompt-item-preview">${escapeHtml(article.prompt_text.substring(0, 100))}...</div>
+                        </div>
+                    `).join('');
                 } else if (type === 'html') {
-                    const response = await fetch('/api/html');
-                    const result = await response.json();
-                    
-                    if (result.success) {
-                        promptsListDiv.innerHTML = result.data.map(html => `
-                            <div class="prompt-item" onclick="showPromptDetail(${html.id}, 'html')">
-                                <div class="prompt-item-title">HTML: ${html.article_title}</div>
-                                <div class="prompt-item-preview">${html.prompt_text.substring(0, 100)}...</div>
-                            </div>
-                        `).join('');
-                    } else {
-                        promptsListDiv.innerHTML = `<div class="error">❌ ${result.error}</div>`;
-                    }
+                    const result = await apiCall('/html');
+                    promptsListDiv.innerHTML = result.data.map(html => `
+                        <div class="prompt-item" onclick="showPromptDetail(${html.id}, 'html')">
+                            <div class="prompt-item-title">HTML: ${escapeHtml(html.article_title)}</div>
+                            <div class="prompt-item-preview">${escapeHtml(html.prompt_text.substring(0, 100))}...</div>
+                        </div>
+                    `).join('');
                 }
             } catch (error) {
-                promptsListDiv.innerHTML = `<div class="error">❌ 加载失败: ${error.message}</div>`;
+                showError(promptsListDiv, `加载失败: ${error.message}`);
             }
         }
         
@@ -1082,43 +1013,37 @@
         async function showPromptDetail(id, type) {
             const detailDiv = document.getElementById('promptDetail');
             const contentDiv = document.getElementById('promptContent');
+            showLoading(contentDiv, '加载中...');
+            detailDiv.style.display = 'block';
             
             try {
-                let url = '';
+                let endpoint = '';
                 if (type === 'title') {
-                    url = `/api/titles/${id}/prompt`;
+                    endpoint = `/titles/${id}/prompt`;
                 } else if (type === 'article') {
-                    url = `/api/articles/${id}/prompt`;
+                    endpoint = `/articles/${id}/prompt`;
                 } else if (type === 'html') {
-                    url = `/api/html/${id}/prompt`;
+                    endpoint = `/html/${id}/prompt`;
                 }
                 
-                const response = await fetch(url);
-                const result = await response.json();
+                const result = await apiCall(endpoint);
                 
-                if (result.success) {
-                    let title = '';
-                    if (type === 'title') {
-                        title = `标题: ${result.data.title_text}`;
-                    } else if (type === 'article') {
-                        title = `短文: ${result.data.title_text}`;
-                    } else if (type === 'html') {
-                        title = `HTML: ${result.data.article_title}`;
-                    }
-                    
-                    contentDiv.innerHTML = `
-                        <h3>${title}</h3>
-                        <div class="prompt-preview">${escapeHtml(result.data.prompt_text)}</div>
-                    `;
-                    detailDiv.style.display = 'block';
-                    detailDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-                } else {
-                    contentDiv.innerHTML = `<div class="error">❌ ${result.error}</div>`;
-                    detailDiv.style.display = 'block';
+                let title = '';
+                if (type === 'title') {
+                    title = `标题: ${escapeHtml(result.data.title_text)}`;
+                } else if (type === 'article') {
+                    title = `短文: ${escapeHtml(result.data.title_text)}`;
+                } else if (type === 'html') {
+                    title = `HTML: ${escapeHtml(result.data.article_title)}`;
                 }
+                
+                contentDiv.innerHTML = `
+                    <h3>${title}</h3>
+                    <div class="prompt-preview">${escapeHtml(result.data.prompt_text)}</div>
+                `;
+                detailDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
             } catch (error) {
-                contentDiv.innerHTML = `<div class="error">❌ 加载失败: ${error.message}</div>`;
-                detailDiv.style.display = 'block';
+                showError(contentDiv, `加载失败: ${error.message}`);
             }
         }
         
@@ -1127,33 +1052,27 @@
             document.getElementById('promptDetail').style.display = 'none';
         }
         
-        // HTML转义函数
-        function escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
-        }
-        
         let selectedCozeTitleId = null;
         
         // 加载Coze主题列表（复用主题数据）
         async function loadCozeTopics() {
+            const select = document.getElementById('cozeTopicSelect');
+            if (!select) return;
+            
             try {
-                const response = await fetch('/api/topics');
-                const result = await response.json();
+                const result = await apiCall('/topics');
+                select.innerHTML = '<option value="">-- 选择主题 --</option>';
                 
-                if (result.success) {
-                    const select = document.getElementById('cozeTopicSelect');
-                    select.innerHTML = '<option value="">-- 选择主题 --</option>';
-                    
-                    if (result.data && result.data.length > 0) {
-                        result.data.forEach(topic => {
+                if (result.data && result.data.length > 0) {
+                    // 只显示有标题的主题（titles_count > 0）
+                    result.data
+                        .filter(topic => (topic.titles_count || 0) > 0)
+                        .forEach(topic => {
                             const option = document.createElement('option');
                             option.value = topic.id;
-                            option.textContent = `${topic.topic_text} (${topic.titles_count || 0}个标题)`;
+                            option.textContent = `${topic.topic_text} (${topic.titles_count}个标题)`;
                             select.appendChild(option);
                         });
-                    }
                 }
             } catch (error) {
                 console.error('加载Coze主题失败:', error);
@@ -1163,31 +1082,26 @@
         // 加载Coze标题列表
         async function loadCozeTitles() {
             const topicId = document.getElementById('cozeTopicSelect').value;
+            const titlesListDiv = document.getElementById('cozeTitlesList');
+            
             if (!topicId) {
-                document.getElementById('cozeTitlesList').innerHTML = '';
+                titlesListDiv.innerHTML = '';
                 return;
             }
             
-            const titlesListDiv = document.getElementById('cozeTitlesList');
-            titlesListDiv.innerHTML = '<div class="loading">加载中</div>';
+            showLoading(titlesListDiv, '加载中...');
             
             try {
-                const response = await fetch(`/api/topics/${topicId}/titles`);
-                const result = await response.json();
+                const result = await apiCall(`/topics/${topicId}/titles`);
+                titlesListDiv.innerHTML = result.data.titles.map(title => `
+                    <div class="list-item" onclick="selectCozeTitle(${title.id})" id="coze-title-${title.id}">
+                        ${escapeHtml(title.title_text)}
+                    </div>
+                `).join('');
                 
-                if (result.success) {
-                    titlesListDiv.innerHTML = result.data.titles.map(title => `
-                        <div class="list-item" onclick="selectCozeTitle(${title.id})" id="coze-title-${title.id}">
-                            ${title.title_text}
-                        </div>
-                    `).join('');
-                    
-                    document.getElementById('generateCozeBtn').disabled = false;
-                } else {
-                    titlesListDiv.innerHTML = `<div class="error">❌ ${result.error}</div>`;
-                }
+                document.getElementById('generateCozeBtn').disabled = false;
             } catch (error) {
-                titlesListDiv.innerHTML = `<div class="error">❌ 加载失败: ${error.message}</div>`;
+                showError(titlesListDiv, `加载失败: ${error.message}`);
             }
         }
         
@@ -1207,40 +1121,39 @@
         // 生成HTML并调用Coze API
         async function generateHTMLAndCallCoze() {
             if (!selectedCozeTitleId) {
-                alert('请选择一个标题');
+                showError(document.getElementById('cozeResult'), '请选择一个标题');
                 return;
             }
             
             const htmlTemplateId = document.getElementById('cozeHtmlPromptSelect').value || null;
-            
             const resultDiv = document.getElementById('cozeResult');
-            resultDiv.innerHTML = '<div class="loading">正在生成HTML并调用Coze API</div>';
+            const btn = document.getElementById('generateCozeBtn');
+            
+            // 禁用按钮，防止重复提交
+            btn.disabled = true;
+            showLoading(resultDiv, '正在生成HTML并调用Coze API...');
             
             try {
-                const response = await fetch(`/api/titles/${selectedCozeTitleId}/coze`, {
+                const result = await apiCall(`/titles/${selectedCozeTitleId}/coze`, {
                     method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({
+                    body: {
                         html_template_id: htmlTemplateId ? parseInt(htmlTemplateId) : null
-                    })
+                    }
                 });
-                const result = await response.json();
                 
-                if (result.success) {
-                    resultDiv.innerHTML = `
-                        <div class="success">✅ 成功！HTML已生成并调用Coze API</div>
-                        <div style="margin-top: 15px; padding: 15px; background: #ffffff; border-radius: 8px; border: 1px solid #e2e8f0;">
-                            <div style="color: #1a202c; margin-bottom: 10px;"><strong style="color: #2d3748;">标题:</strong> <span style="color: #1a202c;">${result.data.title_text}</span></div>
-                            <div style="color: #1a202c; margin-bottom: 10px;"><strong style="color: #2d3748;">HTML ID:</strong> <span style="color: #1a202c;">${result.data.html_id}</span></div>
-                            <div style="color: #1a202c; margin-bottom: 10px;"><strong style="color: #2d3748;">Coze API响应:</strong></div>
-                            <pre style="background: #f7fafc; color: #1a202c !important; padding: 15px; border-radius: 4px; overflow-x: auto; margin-top: 10px; max-height: 400px; overflow-y: auto; border: 1px solid #e2e8f0; font-size: 13px; line-height: 1.5;">${JSON.stringify(result.data.coze_result, null, 2)}</pre>
-                        </div>
-                    `;
-                } else {
-                    resultDiv.innerHTML = `<div class="error">❌ ${result.error}</div>`;
-                }
+                resultDiv.innerHTML = `
+                    <div class="success">✅ 成功！HTML已生成并调用Coze API</div>
+                    <div style="margin-top: 15px; padding: 15px; background: #ffffff; border-radius: 8px; border: 1px solid #e2e8f0;">
+                        <div style="color: #1a202c; margin-bottom: 10px;"><strong style="color: #2d3748;">标题:</strong> <span style="color: #1a202c;">${escapeHtml(result.data.title_text)}</span></div>
+                        <div style="color: #1a202c; margin-bottom: 10px;"><strong style="color: #2d3748;">HTML ID:</strong> <span style="color: #1a202c;">${result.data.html_id}</span></div>
+                        <div style="color: #1a202c; margin-bottom: 10px;"><strong style="color: #2d3748;">Coze API响应:</strong></div>
+                        <pre style="background: #f7fafc; color: #1a202c !important; padding: 15px; border-radius: 4px; overflow-x: auto; margin-top: 10px; max-height: 400px; overflow-y: auto; border: 1px solid #e2e8f0; font-size: 13px; line-height: 1.5;">${escapeHtml(JSON.stringify(result.data.coze_result, null, 2))}</pre>
+                    </div>
+                `;
             } catch (error) {
-                resultDiv.innerHTML = `<div class="error">❌ 生成失败: ${error.message}</div>`;
+                showError(resultDiv, `生成失败: ${error.message}`);
+            } finally {
+                btn.disabled = false;
             }
         }
         

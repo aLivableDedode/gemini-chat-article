@@ -131,38 +131,33 @@
     // 加载HTML输出列表（仅显示列表，不加载内容）
     async function loadHTMLOutputs() {
         const htmlListDiv = document.getElementById('htmlOutputsList');
-        htmlListDiv.innerHTML = '<div class="loading">加载中</div>';
+        showLoading(htmlListDiv, '加载中...');
         
         try {
-            const response = await fetch('/api/html');
-            const result = await response.json();
+            const result = await apiCall('/html');
             
-            if (result.success) {
-                if (result.data.length === 0) {
-                    htmlListDiv.innerHTML = '<div class="info">暂无HTML输出，请先完成步骤3</div>';
-                } else {
-                    htmlListDiv.innerHTML = result.data.map(html => `
-                        <div class="html-output-item" style="margin-bottom: 15px; padding: 20px; background: #ffffff; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 2px 8px rgba(0,0,0,0.05); cursor: pointer; transition: all 0.3s ease;" onclick="toggleHTMLOutput(${html.id}, this)">
-                            <div style="color: #2d3748; display: flex; justify-content: space-between; align-items: center;">
-                                <div>
-                                    <strong style="color: #1a202c;">ID:</strong> <span style="color: #1a202c;">${html.id}</span> | 
-                                    <strong style="color: #1a202c;">短文:</strong> <span style="color: #1a202c;">${html.article_title}</span>
-                                </div>
-                                <div style="color: #667eea; font-size: 14px;">
-                                    <span class="expand-icon-${html.id}">▼</span> <span class="expand-text-${html.id}">点击展开</span>
-                                </div>
+            if (result.data.length === 0) {
+                htmlListDiv.innerHTML = '<div class="info">暂无HTML输出，请先完成步骤3</div>';
+            } else {
+                htmlListDiv.innerHTML = result.data.map(html => `
+                    <div class="html-output-item" style="margin-bottom: 15px; padding: 20px; background: #ffffff; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 2px 8px rgba(0,0,0,0.05); cursor: pointer; transition: all 0.3s ease;" onclick="toggleHTMLOutput(${html.id}, this)">
+                        <div style="color: #2d3748; display: flex; justify-content: space-between; align-items: center;">
+                            <div>
+                                <strong style="color: #1a202c;">ID:</strong> <span style="color: #1a202c;">${html.id}</span> | 
+                                <strong style="color: #1a202c;">短文:</strong> <span style="color: #1a202c;">${escapeHtml(html.article_title)}</span>
                             </div>
-                            <div id="html-content-${html.id}" style="display: none; margin-top: 15px; padding-top: 15px; border-top: 1px solid #e2e8f0;">
-                                <div class="loading-small">加载中...</div>
+                            <div style="color: #667eea; font-size: 14px;">
+                                <span class="expand-icon-${html.id}">▼</span> <span class="expand-text-${html.id}">点击展开</span>
                             </div>
                         </div>
-                    `).join('');
-                }
-            } else {
-                htmlListDiv.innerHTML = `<div class="error">❌ ${result.error}</div>`;
+                        <div id="html-content-${html.id}" style="display: none; margin-top: 15px; padding-top: 15px; border-top: 1px solid #e2e8f0;">
+                            <div class="loading-small">加载中...</div>
+                        </div>
+                    </div>
+                `).join('');
             }
         } catch (error) {
-            htmlListDiv.innerHTML = `<div class="error">❌ 加载失败: ${error.message}</div>`;
+            showError(htmlListDiv, `加载失败: ${error.message}`);
         }
     }
     
@@ -183,42 +178,36 @@
         // 如果内容还没有加载，先加载
         if (contentDiv.innerHTML.includes('加载中')) {
             try {
-                const response = await fetch(`/api/html/${htmlId}`);
-                const result = await response.json();
+                const result = await apiCall(`/html/${htmlId}`);
                 
-                if (result.success) {
-                    // 创建手机端预览容器
-                    const htmlContent = result.data.html_content;
-                    contentDiv.innerHTML = `
-                        <div class="mobile-preview-wrapper">
-                            <div class="mobile-preview-container">
-                                <div class="mobile-screen">
-                                    <div class="mobile-status-bar">
-                                        <div class="mobile-status-left">
-                                            <span>9:41</span>
-                                        </div>
-                                        <div class="mobile-status-right">
-                                            <span>📶</span>
-                                            <span>📶</span>
-                                            <span>🔋</span>
-                                        </div>
+                // 创建手机端预览容器
+                const htmlContent = result.data.html_content;
+                contentDiv.innerHTML = `
+                    <div class="mobile-preview-wrapper">
+                        <div class="mobile-preview-container">
+                            <div class="mobile-screen">
+                                <div class="mobile-status-bar">
+                                    <div class="mobile-status-left">
+                                        <span>9:41</span>
                                     </div>
-                                    <div class="mobile-content">
-                                        ${htmlContent}
+                                    <div class="mobile-status-right">
+                                        <span>📶</span>
+                                        <span>📶</span>
+                                        <span>🔋</span>
                                     </div>
+                                </div>
+                                <div class="mobile-content">
+                                    ${htmlContent}
                                 </div>
                             </div>
                         </div>
-                    `;
-                    contentDiv.style.display = 'block';
-                    iconSpan.textContent = '▲';
-                    textSpan.textContent = '点击收起';
-                } else {
-                    contentDiv.innerHTML = `<div class="error">❌ ${result.error}</div>`;
-                    contentDiv.style.display = 'block';
-                }
+                    </div>
+                `;
+                contentDiv.style.display = 'block';
+                iconSpan.textContent = '▲';
+                textSpan.textContent = '点击收起';
             } catch (error) {
-                contentDiv.innerHTML = `<div class="error">❌ 加载失败: ${error.message}</div>`;
+                contentDiv.innerHTML = `<div class="error">❌ ${escapeHtml(error.message)}</div>`;
                 contentDiv.style.display = 'block';
             }
         } else {
