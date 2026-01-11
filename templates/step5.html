@@ -12,6 +12,12 @@
 <div class="section">
     <h2>步骤 5: 选择标题生成HTML并调用Coze API</h2>
     <div class="form-group">
+        <label>📱 选择微信配置：</label>
+        <select id="wechatConfigSelect">
+            <option value="">-- 选择微信配置 --</option>
+        </select>
+    </div>
+    <div class="form-group">
         <label>📋 选择主题查看标题：</label>
         <select id="cozeTopicSelect" onchange="loadCozeTitles()">
             <option value="">-- 选择主题 --</option>
@@ -37,7 +43,30 @@
     window.onload = function() {
         loadPromptTemplates('html', 'cozeHtmlPromptSelect');
         loadCozeTopics();
+        loadWechatConfigNames();
     };
+    
+    // 加载微信配置名称列表
+    async function loadWechatConfigNames() {
+        const select = document.getElementById('wechatConfigSelect');
+        if (!select) return;
+        
+        try {
+            const result = await apiCall('/api/config/wechat/names');
+            select.innerHTML = '<option value="">-- 选择微信配置 --</option>';
+            
+            if (result.data && result.data.length > 0) {
+                result.data.forEach(name => {
+                    const option = document.createElement('option');
+                    option.value = name;
+                    option.textContent = name;
+                    select.appendChild(option);
+                });
+            }
+        } catch (error) {
+            console.error('加载微信配置名称失败:', error);
+        }
+    }
     
     // 加载Coze主题列表（复用主题数据）
     async function loadCozeTopics() {
@@ -110,19 +139,36 @@
         }
         
         const htmlTemplateId = document.getElementById('cozeHtmlPromptSelect').value || null;
+        const wechatConfigSelect = document.getElementById('wechatConfigSelect');
+        // 获取微信配置值，如果为空字符串则转为null
+        let wechatConfigName = null;
+        if (wechatConfigSelect && wechatConfigSelect.value) {
+            const value = wechatConfigSelect.value.trim();
+            wechatConfigName = value || null;
+        }
+        
         const resultDiv = document.getElementById('cozeResult');
         const btn = document.getElementById('generateCozeBtn');
+        
+        // 调试：打印微信配置值
+        console.log('微信配置下拉框元素:', wechatConfigSelect);
+        console.log('微信配置下拉框的值:', wechatConfigSelect ? wechatConfigSelect.value : '元素不存在');
+        console.log('微信配置名称:', wechatConfigName);
         
         // 禁用按钮，防止重复提交
         btn.disabled = true;
         showLoading(resultDiv, '正在生成HTML并调用Coze API...');
         
         try {
+            const requestBody = {
+                html_template_id: htmlTemplateId ? parseInt(htmlTemplateId) : null,
+                wechat_config_name: wechatConfigName
+            };
+            console.log('请求体:', JSON.stringify(requestBody));
+            
             const result = await apiCall(`/titles/${selectedCozeTitleId}/coze`, {
                 method: 'POST',
-                body: {
-                    html_template_id: htmlTemplateId ? parseInt(htmlTemplateId) : null
-                }
+                body: requestBody
             });
             
             // 格式化 Coze API 响应

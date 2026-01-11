@@ -334,6 +334,7 @@
                 <a href="/step4" class="nav-step" id="nav-step4">步骤4: 查看HTML</a>
                 <a href="/step5" class="nav-step" id="nav-step5">步骤5: Coze API</a>
                 <a href="/prompts" class="nav-step" id="nav-prompts">提示词管理</a>
+                <a href="/config" class="nav-step" id="nav-config">系统配置</a>
             </div>
         </nav>
         
@@ -361,6 +362,8 @@
                 activeId = 'nav-step5';
             } else if (path === '/prompts') {
                 activeId = 'nav-prompts';
+            } else if (path === '/config') {
+                activeId = 'nav-config';
             }
             
             if (activeId) {

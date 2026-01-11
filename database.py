@@ -1,7 +1,7 @@
 """
 数据库初始化和会话管理
 """
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import sessionmaker, scoped_session
 from sqlalchemy.ext.declarative import declarative_base
 import os
@@ -23,9 +23,28 @@ SessionLocal = scoped_session(sessionmaker(autocommit=False, autoflush=False, bi
 Base = declarative_base()
 
 
+def migrate_configs_table():
+    """迁移 configs 表，添加 name 列（如果不存在）"""
+    try:
+        inspector = inspect(engine)
+        if 'configs' in inspector.get_table_names():
+            columns = [col['name'] for col in inspector.get_columns('configs')]
+            if 'name' not in columns:
+                # 添加 name 列
+                with engine.begin() as conn:
+                    conn.execute(text("ALTER TABLE configs ADD COLUMN name VARCHAR(100)"))
+                print("✅ configs 表已添加 name 列")
+    except Exception as e:
+        # 如果表不存在或其他错误，忽略（init_db 会创建表）
+        print(f"⚠️ 迁移 configs 表时出错（可忽略，如果表不存在）: {e}")
+
+
 def init_db():
     """初始化数据库，创建所有表"""
-    from models import Topic, Title, Article, HTMLOutput
+    from models import Topic, Title, Article, HTMLOutput, Config
+    # 迁移 configs 表（如果已存在且缺少 name 列）
+    migrate_configs_table()
+    # 创建所有表（包括新表和已有表的更新）
     Base.metadata.create_all(bind=engine)
 
 

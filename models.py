@@ -1,7 +1,7 @@
 """
 数据模型定义
 """
-from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, ForeignKey
+from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, ForeignKey, UniqueConstraint
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from database import Base
@@ -83,6 +83,22 @@ class PromptTemplate(Base):
     content = Column(Text, nullable=False)  # 模板内容
     is_default = Column(Boolean, default=False)  # 是否为默认模板
     file_path = Column(String(500), nullable=True)  # 文件路径（如果从文件加载）
+    created_at = Column(DateTime, default=datetime.now)
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
+
+
+class Config(Base):
+    """系统配置表"""
+    __tablename__ = "configs"
+    __table_args__ = (
+        UniqueConstraint('name', 'key', name='uq_config_name_key'),  # name和key的组合必须唯一
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(100), nullable=True, index=True)  # 配置名称（用于区分不同配置）
+    key = Column(String(100), nullable=False, index=True)  # 配置键
+    value = Column(Text, nullable=True)  # 配置值
+    description = Column(String(500), nullable=True)  # 配置描述
     created_at = Column(DateTime, default=datetime.now)
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
 

@@ -8,6 +8,10 @@ API_KEY = os.getenv("GEMINI_API_KEY")
 BASE_URL = os.getenv("GEMINI_BASE_URL", "http://1003.2.gptuu.cc:1003")
 MODEL_NAME = os.getenv("GEMINI_MODEL_NAME", "gemini-3-pro-preview")
 
+# 微信API配置
+WECHAT_APP_ID = os.getenv("WECHAT_APP_ID")
+WECHAT_APP_SECRET = os.getenv("WECHAT_APP_SECRET")
+
 # 提示词文件路径
 TITLE_PROMPT_FILE = "标题生成提示词"
 ARTICLE_PROMPT_FILE = "qx-短文提示词"

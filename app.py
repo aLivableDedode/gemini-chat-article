@@ -3,7 +3,7 @@ Flask Web应用
 """
 from flask import Flask, render_template, request, jsonify, redirect
 from database import init_db, get_db_session
-from models import Topic, Title, Article, HTMLOutput, PromptTemplate
+from models import Topic, Title, Article, HTMLOutput, PromptTemplate, Config
 from services.title_service import generate_titles, save_titles_to_db
 from services.article_service import generate_article, save_article_to_db
 from services.html_service import generate_html, save_html_to_db
@@ -67,6 +67,12 @@ def step5():
 def prompts():
     """提示词管理"""
     return render_template('prompts.html')
+
+
+@app.route('/config')
+def config():
+    """系统配置"""
+    return render_template('config.html')
 
 
 @app.route('/api/topics', methods=['GET'])
@@ -232,6 +238,129 @@ def delete_prompt(template_id):
     except Exception as e:
         logger.error(f"删除提示词模板失败: template_id={template_id}, error={e}", exc_info=True)
         return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/config', methods=['GET'])
+def get_config():
+    """获取所有配置"""
+    logger.info("收到获取配置列表请求")
+    db = get_db_session()
+    try:
+        configs = db.query(Config).order_by(Config.name, Config.key).all()
+        logger.info(f"查询到 {len(configs)} 个配置项")
+        result = []
+        for c in configs:
+            result.append({
+                'id': c.id,
+                'name': c.name,
+                'key': c.key,
+                'value': c.value,
+                'description': c.description,
+                'created_at': c.created_at.isoformat(),
+                'updated_at': c.updated_at.isoformat()
+            })
+        return jsonify({
+            'success': True,
+            'data': result
+        })
+    except Exception as e:
+        logger.error(f"获取配置列表失败: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        db.close()
+
+
+@app.route('/api/config/wechat/names', methods=['GET'])
+def get_wechat_config_names():
+    """获取微信配置名称列表"""
+    logger.info("收到获取微信配置名称列表请求")
+    db = get_db_session()
+    try:
+        # 获取所有微信相关的配置（通过 key 过滤）
+        configs = db.query(Config).filter(
+            Config.key.in_(['WECHAT_APP_ID', 'WECHAT_APP_SECRET']),
+            Config.name.isnot(None)
+        ).order_by(Config.name).all()
+        
+        # 获取唯一的配置名称
+        names = sorted(list(set([c.name for c in configs if c.name])))
+        logger.info(f"查询到 {len(names)} 个微信配置名称")
+        
+        return jsonify({
+            'success': True,
+            'data': names
+        })
+    except Exception as e:
+        logger.error(f"获取微信配置名称列表失败: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        db.close()
+
+
+@app.route('/api/config', methods=['POST'])
+def save_config():
+    """保存或更新配置"""
+    data = request.json
+    name = data.get('name', '').strip() or None
+    key = data.get('key', '').strip()
+    value = data.get('value', '').strip()
+    description = data.get('description', '').strip() or None
+    
+    logger.info(f"收到保存配置请求: name='{name}', key='{key}'")
+    
+    if not key:
+        logger.warning("配置键为空")
+        return jsonify({'success': False, 'error': '配置键不能为空'}), 400
+    
+    db = get_db_session()
+    try:
+        # 查找是否已存在该配置（通过name和key的组合）
+        if name:
+            config = db.query(Config).filter(Config.name == name, Config.key == key).first()
+        else:
+            # 如果没有name，则按key查找（兼容旧数据）
+            config = db.query(Config).filter(Config.name.is_(None), Config.key == key).first()
+        
+        if config:
+            # 更新现有配置
+            logger.info(f"更新配置: name='{name}', key='{key}'")
+            config.value = value
+            config.description = description
+            if name:
+                config.name = name
+            db.commit()
+            config_id = config.id
+            logger.info(f"配置更新成功，ID: {config_id}")
+        else:
+            # 创建新配置
+            logger.info(f"创建新配置: name='{name}', key='{key}'")
+            config = Config(
+                name=name,
+                key=key,
+                value=value,
+                description=description
+            )
+            db.add(config)
+            db.commit()
+            config_id = config.id
+            logger.info(f"配置创建成功，ID: {config_id}")
+        
+        return jsonify({
+            'success': True,
+            'data': {
+                'id': config_id,
+                'name': name,
+                'key': key,
+                'value': value,
+                'description': description
+            }
+        })
+    except Exception as e:
+        db.rollback()
+        logger.error(f"保存配置失败: name={name}, key={key}, error={e}", exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        db.close()
 
 
 @app.route('/api/topics', methods=['POST'])
@@ -735,8 +864,9 @@ def call_coze_for_title(title_id):
     """为标题生成HTML并调用Coze API"""
     data = request.json or {}
     html_template_id = data.get('html_template_id', None)  # 可选的HTML提示词模板ID
+    wechat_config_name = data.get('wechat_config_name', None)  # 可选的微信配置名称
     
-    logger.info(f"收到调用Coze API请求: title_id={title_id}, html_template_id={html_template_id}")
+    logger.info(f"收到调用Coze API请求: title_id={title_id}, html_template_id={html_template_id}, wechat_config_name={wechat_config_name}")
     
     db = get_db_session()
     try:
@@ -765,9 +895,40 @@ def call_coze_for_title(title_id):
         else:
             logger.info(f"使用已有HTML: html_id={html_output.id}")
         
-        # 3. 调用Coze API
-        logger.info(f"开始调用Coze API: title='{title.title_text}'")
-        coze_result = call_coze_api(title.title_text, html_output.html_content)
+        # 3. 获取微信配置（如果提供了配置名称）
+        wechat_app_id = None
+        wechat_app_secret = None
+        if wechat_config_name:
+            logger.info(f"获取微信配置: name='{wechat_config_name}'")
+            app_id_config = db.query(Config).filter(
+                Config.name == wechat_config_name,
+                Config.key == 'WECHAT_APP_ID'
+            ).first()
+            app_secret_config = db.query(Config).filter(
+                Config.name == wechat_config_name,
+                Config.key == 'WECHAT_APP_SECRET'
+            ).first()
+            
+            if app_id_config:
+                wechat_app_id = app_id_config.value
+                logger.info(f"获取到微信AppID: {app_id_config.value[:4]}...{app_id_config.value[-4:] if len(app_id_config.value) > 8 else '****'}")
+            else:
+                logger.warning(f"未找到微信配置: name='{wechat_config_name}', key='WECHAT_APP_ID'")
+            
+            if app_secret_config:
+                wechat_app_secret = app_secret_config.value
+                logger.info(f"获取到微信AppSecret: {app_secret_config.value[:4]}...{app_secret_config.value[-4:] if len(app_secret_config.value) > 8 else '****'}")
+            else:
+                logger.warning(f"未找到微信配置: name='{wechat_config_name}', key='WECHAT_APP_SECRET'")
+        
+        # 4. 调用Coze API
+        logger.info(f"开始调用Coze API: title='{title.title_text}', wechat_config_name={wechat_config_name}")
+        coze_result = call_coze_api(
+            title.title_text, 
+            html_output.html_content,
+            wechat_app_id=wechat_app_id,
+            wechat_app_secret=wechat_app_secret
+        )
         
         logger.info(f"Coze API调用成功: title_id={title_id}")
         return jsonify({
@@ -776,6 +937,8 @@ def call_coze_for_title(title_id):
                 'title_id': title_id,
                 'title_text': title.title_text,
                 'html_id': html_output.id,
+                'wechat_config_name': wechat_config_name,
+                'wechat_app_id': wechat_app_id,
                 'coze_result': coze_result
             }
         })

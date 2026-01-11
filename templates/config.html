@@ -1,0 +1,247 @@
+{% extends "base.html" %}
+
+{% block title %}系统配置 - 文章生成系统{% endblock %}
+
+{% block content %}
+<div class="section">
+    <h2>⚙️ 系统配置</h2>
+    
+    <!-- 微信API配置 -->
+    <div style="margin-bottom: 30px; padding: 20px; background: #f7fafc; border-radius: 12px; border: 1px solid #e2e8f0;">
+        <h3 style="margin-bottom: 15px; color: #1a202c;">📱 微信API配置</h3>
+        <div class="form-group">
+            <label>📝 配置名称（用于区分不同配置）：</label>
+            <input type="text" id="configName" placeholder="例如：生产环境、测试环境、账号A...">
+            <small style="display: block; margin-top: 5px; color: #718096;">输入一个名称来标识这个配置，便于区分多个微信账号或环境</small>
+        </div>
+        <div class="form-group">
+            <label>📋 选择已有配置（可选）：</label>
+            <select id="configSelect" onchange="loadConfigBySelect()">
+                <option value="">-- 创建新配置 --</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label>🔑 微信AppID：</label>
+            <input type="text" id="wechatAppId" placeholder="请输入微信AppID">
+        </div>
+        <div class="form-group">
+            <label>🔐 微信AppSecret：</label>
+            <input type="password" id="wechatAppSecret" placeholder="请输入微信AppSecret">
+            <button type="button" onclick="togglePassword('wechatAppSecret')" style="margin-top: 8px; padding: 6px 12px; font-size: 12px; background: #718096;">显示/隐藏</button>
+        </div>
+        <button onclick="saveWechatConfig()">💾 保存微信配置</button>
+        <div id="wechatConfigResult" style="margin-top: 15px;"></div>
+    </div>
+    
+    <!-- 查看当前配置 -->
+    <div style="margin-top: 30px;">
+        <h3 style="margin-bottom: 15px; color: #1a202c;">📋 当前配置</h3>
+        <button onclick="loadConfig()" style="margin-bottom: 15px;">🔄 刷新配置</button>
+        <div id="configList"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // 页面加载时自动加载配置
+    document.addEventListener('DOMContentLoaded', function() {
+        loadConfig();
+        loadConfigNames();
+    });
+    
+    // 切换密码显示/隐藏
+    function togglePassword(inputId) {
+        const input = document.getElementById(inputId);
+        if (input.type === 'password') {
+            input.type = 'text';
+        } else {
+            input.type = 'password';
+        }
+    }
+    
+    // 加载配置名称列表（用于下拉选择）
+    async function loadConfigNames() {
+        const select = document.getElementById('configSelect');
+        try {
+            const result = await apiCall('/api/config');
+            
+            // 获取所有唯一的配置名称
+            const names = [...new Set(result.data
+                .filter(c => c.name && (c.key === 'WECHAT_APP_ID' || c.key === 'WECHAT_APP_SECRET'))
+                .map(c => c.name))];
+            
+            // 清空选项（保留默认选项）
+            select.innerHTML = '<option value="">-- 创建新配置 --</option>';
+            
+            // 添加配置名称选项
+            names.forEach(name => {
+                const option = document.createElement('option');
+                option.value = name;
+                option.textContent = name;
+                select.appendChild(option);
+            });
+        } catch (error) {
+            console.error('加载配置名称失败:', error);
+        }
+    }
+    
+    // 根据选择的配置名称加载配置
+    async function loadConfigBySelect() {
+        const selectedName = document.getElementById('configSelect').value;
+        if (!selectedName) {
+            // 清空表单
+            document.getElementById('configName').value = '';
+            document.getElementById('wechatAppId').value = '';
+            document.getElementById('wechatAppSecret').value = '';
+            return;
+        }
+        
+        try {
+            const result = await apiCall('/api/config');
+            const configs = result.data.filter(c => c.name === selectedName);
+            
+            const appId = configs.find(c => c.key === 'WECHAT_APP_ID');
+            const appSecret = configs.find(c => c.key === 'WECHAT_APP_SECRET');
+            
+            // 填充表单
+            document.getElementById('configName').value = selectedName;
+            if (appId) {
+                document.getElementById('wechatAppId').value = appId.value || '';
+            }
+            if (appSecret) {
+                document.getElementById('wechatAppSecret').value = appSecret.value || '';
+            }
+        } catch (error) {
+            showError(document.getElementById('wechatConfigResult'), `加载配置失败: ${error.message}`);
+        }
+    }
+    
+    // 保存微信配置
+    async function saveWechatConfig() {
+        const configName = document.getElementById('configName').value.trim();
+        const appId = document.getElementById('wechatAppId').value.trim();
+        const appSecret = document.getElementById('wechatAppSecret').value.trim();
+        const resultDiv = document.getElementById('wechatConfigResult');
+        const btn = event.target;
+        
+        if (!configName) {
+            showError(resultDiv, '请输入配置名称');
+            return;
+        }
+        
+        if (!appId) {
+            showError(resultDiv, '请输入微信AppID');
+            return;
+        }
+        
+        if (!appSecret) {
+            showError(resultDiv, '请输入微信AppSecret');
+            return;
+        }
+        
+        // 禁用按钮，防止重复提交
+        btn.disabled = true;
+        showLoading(resultDiv, '正在保存...');
+        
+        try {
+            // 保存AppID
+            await apiCall('/api/config', {
+                method: 'POST',
+                body: {
+                    name: configName,
+                    key: 'WECHAT_APP_ID',
+                    value: appId,
+                    description: '微信AppID'
+                }
+            });
+            
+            // 保存AppSecret
+            await apiCall('/api/config', {
+                method: 'POST',
+                body: {
+                    name: configName,
+                    key: 'WECHAT_APP_SECRET',
+                    value: appSecret,
+                    description: '微信AppSecret'
+                }
+            });
+            
+            resultDiv.innerHTML = `<div class="success">✅ 微信配置 "${escapeHtml(configName)}" 保存成功！</div>`;
+            // 刷新配置列表和名称列表
+            loadConfig();
+            loadConfigNames();
+        } catch (error) {
+            showError(resultDiv, `保存失败: ${error.message}`);
+        } finally {
+            btn.disabled = false;
+        }
+    }
+    
+    // 加载配置
+    async function loadConfig() {
+        const configListDiv = document.getElementById('configList');
+        showLoading(configListDiv, '加载中...');
+        
+        try {
+            const result = await apiCall('/api/config');
+            
+            if (result.data.length === 0) {
+                configListDiv.innerHTML = '<div class="info">暂无配置</div>';
+            } else {
+                // 按名称分组显示配置
+                const configsByName = {};
+                result.data.forEach(config => {
+                    const name = config.name || '(未命名)';
+                    if (!configsByName[name]) {
+                        configsByName[name] = [];
+                    }
+                    configsByName[name].push(config);
+                });
+                
+                // 生成配置列表HTML
+                const configHtml = Object.keys(configsByName).map(name => {
+                    const configs = configsByName[name];
+                    const configItems = configs.map(config => {
+                        let displayValue = config.value || '(未设置)';
+                        // 对敏感信息进行掩码处理
+                        if (config.key === 'WECHAT_APP_SECRET' && displayValue !== '(未设置)') {
+                            displayValue = displayValue.length > 8 
+                                ? displayValue.substring(0, 4) + '****' + displayValue.substring(displayValue.length - 4)
+                                : '****';
+                        }
+                        
+                        return `
+                            <div style="margin-bottom: 10px; padding: 10px; background: white; border-radius: 6px; border: 1px solid #e2e8f0;">
+                                <strong style="color: #667eea;">${escapeHtml(config.key)}</strong>
+                                ${config.description ? `<small style="display: block; margin-top: 5px; color: #718096;">${escapeHtml(config.description)}</small>` : ''}
+                                <div style="margin-top: 8px; padding: 8px; background: #f7fafc; border-radius: 4px; border: 1px solid #e2e8f0;">
+                                    <code style="color: #1a202c; word-break: break-all;">${escapeHtml(displayValue)}</code>
+                                </div>
+                            </div>
+                        `;
+                    }).join('');
+                    
+                    return `
+                        <div class="list-item" style="display: block; padding: 15px; margin-bottom: 15px; border-left: 4px solid #667eea;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                                <h4 style="margin: 0; color: #1a202c;">
+                                    ${name === '(未命名)' ? '🔧 ' : '📝 '}${escapeHtml(name)}
+                                </h4>
+                                <small style="color: #a0aec0;">
+                                    ${configs[0].updated_at ? `更新时间: ${new Date(configs[0].updated_at).toLocaleString('zh-CN')}` : ''}
+                                </small>
+                            </div>
+                            ${configItems}
+                        </div>
+                    `;
+                }).join('');
+                
+                configListDiv.innerHTML = configHtml;
+            }
+        } catch (error) {
+            showError(configListDiv, `加载失败: ${error.message}`);
+        }
+    }
+</script>
+{% endblock %}

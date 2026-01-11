@@ -33,15 +33,17 @@ def _get_coze_authorization() -> str:
     return ""
 
 
-def call_coze_api(title: str, content: str) -> Dict:
+def call_coze_api(title: str, content: str, wechat_app_id: Optional[str] = None, wechat_app_secret: Optional[str] = None) -> Dict:
     """
     调用Coze API接口
     
     :param title: 标题
     :param content: 内容（HTML）
+    :param wechat_app_id: 微信AppID（可选）
+    :param wechat_app_secret: 微信AppSecret（可选）
     :return: API响应结果字典
     """
-    logger.info(f"开始调用Coze API: title='{title}', content_length={len(content)}")
+    logger.info(f"开始调用Coze API: title='{title}', content_length={len(content)}, wechat_app_id={'已提供' if wechat_app_id else '未提供'}, wechat_app_secret={'已提供' if wechat_app_secret else '未提供'}")
     
     authorization = _get_coze_authorization()
     if not authorization:
@@ -56,12 +58,21 @@ def call_coze_api(title: str, content: str) -> Dict:
     workflow_id = str(COZE_WORKFLOW_ID).strip()
     logger.debug(f"使用字符串格式的 workflow_id: {workflow_id}")
     
+    # 构建parameters对象
+    parameters = {
+        "title": str(title).strip(),
+        "content": str(content).strip()
+    }
+    
+    # 如果提供了微信配置，添加到parameters中
+    if wechat_app_id:
+        parameters["api_key"] = wechat_app_id
+    if wechat_app_secret:
+        parameters["secret"] = wechat_app_secret
+    
     payload = {
         "workflow_id": workflow_id,
-        "parameters": {
-            "title": str(title).strip(),
-            "content": str(content).strip()
-        }
+        "parameters": parameters
     }
     
     # 验证参数不为空
